@@ -160,8 +160,8 @@ export function MyFilesSection() {
   }, [fileFilter])
 
   return (
-    <section className="">
-      <div className="sticky top-0 z-30 -mx-4 h-20 border-b border-border bg-background px-4 md:-mx-6 md:px-6">
+    <section >
+      <div className="sticky top-0 z-30 -mx-4 h-20 bg-background px-4 md:-mx-6 md:px-6">
         <div className="grid h-full grid-cols-[1fr_auto] items-center gap-3">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">

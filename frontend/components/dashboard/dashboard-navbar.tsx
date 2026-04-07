@@ -52,13 +52,17 @@ export function DashboardNavbar() {
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuLabel>Akun</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <User className="size-4" />
-                Profil
+              <DropdownMenuItem asChild>
+                <Link href="/profile">
+                  <User className="size-4" />
+                  Profil
+                </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Settings className="size-4" />
-                Settings
+              <DropdownMenuItem asChild>
+                <Link href="/profile#security">
+                  <Settings className="size-4" />
+                  Settings
+                </Link>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
