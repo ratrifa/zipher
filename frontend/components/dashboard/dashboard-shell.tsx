@@ -9,15 +9,17 @@ type DashboardShellProps = {
 
 export function DashboardShell({ children }: DashboardShellProps) {
   return (
-    <div className="min-h-svh bg-background">
-      <div className="grid min-h-svh md:grid-cols-[280px_1fr]">
-        <div className="hidden border-r border-sidebar-border md:block">
+    <div className="h-svh overflow-hidden bg-background">
+      <div className="grid h-full md:grid-cols-[280px_1fr]">
+        <div className="hidden h-svh border-r border-sidebar-border md:sticky md:top-0 md:block">
           <DashboardSidebar />
         </div>
 
-        <div className="flex min-h-svh flex-col">
+        <div className="flex h-svh flex-col overflow-hidden">
           <DashboardNavbar />
-          <main className="flex-1 p-4 md:p-6">{children}</main>
+          <main className="flex-1 overflow-y-auto px-7 pb-4 md:px-7 pb-4">
+            {children}
+          </main>
         </div>
       </div>
     </div>

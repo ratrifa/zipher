@@ -18,20 +18,20 @@ import { Input } from "@/components/ui/input"
 export function DashboardNavbar() {
   return (
     <header className="border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80">
-      <div className="flex h-16 items-center gap-4 px-4 md:px-6">
+      <div className="flex h-18 items-center gap-4 px-4 md:px-6">
         <Link href="/dashboard" className="flex items-center gap-2">
-          <span className="rounded-md bg-primary p-1.5 text-primary-foreground">
-            <FolderOpen className="size-4" />
+          <span className="rounded-md bg-primary p-2 text-primary-foreground">
+            <FolderOpen className="size-5" />
           </span>
-          <span className="text-sm font-semibold tracking-tight">zipher</span>
+          <span className="text-base font-semibold tracking-tight">zipher</span>
         </Link>
 
         <div className="relative ml-2 hidden max-w-md flex-1 md:block">
-          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="search"
             placeholder="Search files..."
-            className="h-9 rounded-full bg-muted pl-8"
+            className="h-10 rounded-full bg-muted pl-10"
           />
         </div>
 
@@ -40,16 +40,16 @@ export function DashboardNavbar() {
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
-                className="h-11 overflow-hidden rounded-full px-1.5 py-0"
+                className="h-12 overflow-hidden rounded-full px-2 py-0"
                 aria-label="Menu akun"
               >
-                <Avatar size="default" className="size-9">
+                <Avatar size="default" className="size-10">
                   <AvatarFallback>ZA</AvatarFallback>
                 </Avatar>
                 <ChevronDown className="size-4 text-muted-foreground" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuLabel>Akun</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem>

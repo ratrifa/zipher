@@ -1,4 +1,7 @@
+"use client"
+
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { Clock3, Home, Star, Trash2, Users } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -7,9 +10,9 @@ import { Progress } from "@/components/ui/progress"
 const menuItems = [
   {
     label: "My Files",
-    href: "/dashboard",
+    href: "/dashboard/my-files",
     icon: Home,
-    active: true,
+    match: ["/dashboard", "/dashboard/my-files"],
   },
   {
     label: "Shared with Me",
@@ -34,11 +37,17 @@ const menuItems = [
 ]
 
 export function DashboardSidebar() {
+  const pathname = usePathname()
+
   return (
     <aside className="flex h-full flex-col bg-sidebar p-4 text-sidebar-foreground">
       <nav className="space-y-1">
         {menuItems.map((item) => {
           const Icon = item.icon
+          const isActive =
+            "match" in item && item.match
+              ? item.match.includes(pathname)
+              : item.href === pathname
 
           return (
             <Button
@@ -47,7 +56,7 @@ export function DashboardSidebar() {
               variant="ghost"
               className={[
                 "h-12 w-full justify-start gap-3 rounded-3xl px-4 text-base",
-                item.active
+                isActive
                   ? "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/80"
                   : "text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
               ].join(" ")}
