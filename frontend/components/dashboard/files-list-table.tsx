@@ -1,4 +1,4 @@
-import type { LucideIcon } from "lucide-react"
+import { LucideIcon } from "lucide-react"
 import {
   Download,
   MoreVertical,
@@ -6,6 +6,7 @@ import {
   SlidersHorizontal,
   Star,
   UserPlus,
+  RotateCcw,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -15,6 +16,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 type FileListItem = {
   name: string
@@ -23,6 +30,8 @@ type FileListItem = {
   size: string
   icon: LucideIcon
   iconClassName: string
+  location?: string
+  isStarred?: boolean
 }
 
 export type FileFilterOption = "none" | "smallest" | "largest" | "folder-first"
@@ -31,14 +40,27 @@ type FilesListTableProps = {
   files: FileListItem[]
   activeFilter: FileFilterOption
   onFilterChange: (value: FileFilterOption) => void
+  showTrashActions?: boolean
+  showStarredView?: boolean
 }
 
 export function FilesListTable({
   files,
   activeFilter,
   onFilterChange,
+  showTrashActions = false,
+  showStarredView = false,
 }: FilesListTableProps) {
-  const tableColumns = (
+  const tableColumns = showTrashActions ? (
+    <colgroup>
+      <col style={{ width: "28%" }} />
+      <col style={{ width: "15%" }} />
+      <col style={{ width: "17%" }} />
+      <col style={{ width: "12%" }} />
+      <col style={{ width: "18%" }} />
+      <col style={{ width: "10%" }} />
+    </colgroup>
+  ) : (
     <colgroup>
       <col style={{ width: "34%" }} />
       <col style={{ width: "17%" }} />
@@ -59,11 +81,14 @@ export function FilesListTable({
                 <th className="px-4 py-3 font-medium">Nama</th>
                 <th className="px-4 py-3 font-medium">Pemilik</th>
                 <th className="px-4 py-3 font-medium">
-                  Tanggal Terakhir Diubah
+                  {showTrashActions ? "Tanggal dihapus" : "Tanggal Terakhir Diubah"}
                 </th>
                 <th className="px-2 py-3 font-medium whitespace-nowrap">
                   Size
                 </th>
+                {showTrashActions && (
+                  <th className="px-4 py-3 font-medium">Lokasi awal</th>
+                )}
                 <th className="px-1 py-3 text-right font-medium whitespace-nowrap">
                   <div className="flex justify-end">
                     <DropdownMenu>
@@ -148,40 +173,104 @@ export function FilesListTable({
                   <td className="px-2 py-3 whitespace-nowrap text-muted-foreground">
                     {file.size}
                   </td>
+                  {showTrashActions && (
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {file.location || "-"}
+                    </td>
+                  )}
                   <td className="px-1 py-3 text-right">
                     <div className="flex items-center justify-end gap-0.5">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="pointer-events-none size-8 rounded-full opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100"
-                        aria-label="Share file"
-                      >
-                        <UserPlus className="size-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="pointer-events-none size-8 rounded-full opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100"
-                        aria-label="Download file"
-                      >
-                        <Download className="size-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="pointer-events-none size-8 rounded-full opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100"
-                        aria-label="Edit file"
-                      >
-                        <Pencil className="size-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="pointer-events-none size-8 rounded-full opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100"
-                        aria-label="Star file"
-                      >
-                        <Star className="size-4" />
-                      </Button>
+                      {!showTrashActions ? (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="pointer-events-none size-8 rounded-full opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100"
+                                aria-label="Share file"
+                              >
+                                <UserPlus className="size-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Bagikan</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="pointer-events-none size-8 rounded-full opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100"
+                                aria-label="Download file"
+                              >
+                                <Download className="size-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Unduh</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="pointer-events-none size-8 rounded-full opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100"
+                                aria-label="Edit file"
+                              >
+                                <Pencil className="size-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Ubah nama</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="pointer-events-none size-8 rounded-full opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100"
+                                aria-label={file.isStarred ? "Remove from Starred" : "Star file"}
+                              >
+                                <Star
+                                  className={`size-4 ${
+                                    file.isStarred ? "fill-yellow-400 text-yellow-400" : ""
+                                  }`}
+                                />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {file.isStarred ? "Hapus dari Bintang" : "Tambahkan ke Bintang"}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="pointer-events-none size-8 rounded-full opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100"
+                                aria-label="Download file"
+                              >
+                                <Download className="size-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Unduh</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="pointer-events-none size-8 rounded-full opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100"
+                                aria-label="Restore file"
+                              >
+                                <RotateCcw className="size-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Pulihkan</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
 
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -195,12 +284,23 @@ export function FilesListTable({
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-40">
-                          <DropdownMenuItem>Open</DropdownMenuItem>
-                          <DropdownMenuItem>Rename</DropdownMenuItem>
-                          <DropdownMenuItem>Move</DropdownMenuItem>
-                          <DropdownMenuItem variant="destructive">
-                            Delete
-                          </DropdownMenuItem>
+                          {showTrashActions ? (
+                            <>
+                              <DropdownMenuItem>Pulihkan</DropdownMenuItem>
+                              <DropdownMenuItem variant="destructive">
+                                Hapus selamanya
+                              </DropdownMenuItem>
+                            </>
+                          ) : (
+                            <>
+                              <DropdownMenuItem>Open</DropdownMenuItem>
+                              <DropdownMenuItem>Rename</DropdownMenuItem>
+                              <DropdownMenuItem>Move</DropdownMenuItem>
+                              <DropdownMenuItem variant="destructive">
+                                Delete
+                              </DropdownMenuItem>
+                            </>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>

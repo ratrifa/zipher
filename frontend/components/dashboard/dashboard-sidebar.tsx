@@ -16,7 +16,7 @@ const menuItems = [
   },
   {
     label: "Shared with Me",
-    href: "#",
+    href: "/dashboard/shared",
     icon: Users,
   },
   {
@@ -26,12 +26,12 @@ const menuItems = [
   },
   {
     label: "Starred",
-    href: "#",
+    href: "/dashboard/starred",
     icon: Star,
   },
   {
     label: "Trash",
-    href: "#",
+    href: "/dashboard/trash",
     icon: Trash2,
   },
 ]
