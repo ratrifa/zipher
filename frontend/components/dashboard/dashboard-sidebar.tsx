@@ -21,7 +21,7 @@ const menuItems = [
   },
   {
     label: "Recent",
-    href: "#",
+    href: "/dashboard/recent",
     icon: Clock3,
   },
   {

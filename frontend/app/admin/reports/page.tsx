@@ -1,9 +1,9 @@
 "use client"
 
 import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import { TriangleAlert, ChevronDown, FolderOpen } from "lucide-react"
 
-// Mock Data
 const REPORTS_DATA = Array(6).fill(null).map((_, i) => ({
   id: i + 1,
   file: "video.mp4",
@@ -15,36 +15,37 @@ const REPORTS_DATA = Array(6).fill(null).map((_, i) => ({
 
 export default function ReportsPage() {
   return (
-    <div className="flex flex-col gap-6 p-6 md:p-8">
+    <div className="space-y-6 py-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-normal text-slate-800">Reports</h1>
-        <p className="text-[13px] text-blue-400">Reports</p>
+        <h1 className="text-2xl font-semibold tracking-tight">Reports</h1>
+        <p className="text-sm text-muted-foreground">Review dan moderasi laporan konten.</p>
       </div>
 
-      <div className="flex-1 w-full xl:w-4/5 bg-white rounded-lg shadow-sm overflow-hidden p-6 pt-4 border border-slate-100">
-        
-        {/* Table Header Section */}
-        <div className="flex items-center justify-between mb-4 mt-2">
-          <div className="flex items-center gap-1 text-xs font-bold text-slate-600 hover:text-slate-900 cursor-pointer transition-colors">
-            Search Filters <ChevronDown className="size-4" />
-          </div>
-          
-          <div className="flex items-center gap-4">
-            <div className="bg-blue-500 text-white text-[11px] font-bold px-4 py-1.5 rounded-sm tracking-wide shadow-sm">
+      <div className="w-full rounded-2xl border bg-card p-5 shadow-sm xl:w-4/5">
+        <div className="mb-4 mt-1 flex flex-wrap items-center justify-between gap-3">
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Search Filters
+            <ChevronDown className="size-4" />
+          </button>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="rounded-md bg-primary/15 px-3 py-1.5 text-[11px] font-semibold tracking-wide text-primary uppercase">
               REPORT COUNT: 67
             </div>
-            <Input 
-              placeholder="Search Report..." 
-              className="w-48 h-8 text-xs rounded-sm border-slate-200 focus-visible:ring-blue-100"
+            <Input
+              placeholder="Search report..."
+              className="h-8 w-full max-w-55 text-xs"
             />
           </div>
         </div>
 
-        {/* Table Section */}
-        <div className="overflow-x-auto rounded-md border border-slate-100 shadow-sm">
-          <table className="w-full text-center text-xs text-slate-600 font-medium border-collapse">
+        <div className="overflow-x-auto rounded-xl border border-border/80">
+          <table className="w-full min-w-245 border-collapse text-center text-xs">
             <thead>
-              <tr className="border-b border-slate-200 uppercase text-slate-500 bg-slate-50/50">
+              <tr className="border-b border-border/80 bg-muted/40 text-muted-foreground uppercase">
                 <th className="py-3 px-2 font-bold w-12">No</th>
                 <th className="py-3 px-2 font-bold text-left">File</th>
                 <th className="py-3 px-2 font-bold text-left">Owner</th>
@@ -54,35 +55,59 @@ export default function ReportsPage() {
                 <th className="py-3 px-2 font-bold text-right w-[320px]">Action</th>
               </tr>
             </thead>
-            <tbody className="bg-white">
+            <tbody>
               {REPORTS_DATA.map((item) => (
-                <tr key={item.id} className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50 transition-colors">
-                  <td className="py-3 px-2 text-center text-slate-400">{item.id}</td>
-                  <td className="py-3 px-2 text-left font-bold text-slate-700">{item.file}</td>
-                  <td className="py-3 px-2 text-left text-[11px] font-semibold text-slate-600">{item.owner}</td>
+                <tr
+                  key={item.id}
+                  className="border-b border-border/70 bg-card transition-colors hover:bg-muted/30 last:border-b-0"
+                >
+                  <td className="py-3 px-2 text-center text-muted-foreground">{item.id}</td>
+                  <td className="py-3 px-2 text-left font-semibold">{item.file}</td>
+                  <td className="py-3 px-2 text-left text-[11px] font-semibold text-muted-foreground">{item.owner}</td>
                   <td className="py-3 px-2 text-left">
-                     <span className="bg-rose-100 text-rose-700 px-2.5 py-1 rounded-sm text-[10px] font-bold tracking-wide uppercase">
-                        {item.reason}
-                     </span>
+                    <span className="rounded-sm bg-destructive/15 px-2.5 py-1 text-[10px] font-semibold tracking-wide text-destructive uppercase">
+                      {item.reason}
+                    </span>
                   </td>
-                  <td className="py-3 px-2 text-left text-[11px] text-slate-500">{item.reportedBy}</td>
-                  <td className="py-3 px-2 text-left text-[11px] text-slate-500 font-medium">{item.time}</td>
-                  
-                  {/* Actions Column */}
+                  <td className="py-3 px-2 text-left text-[11px] text-muted-foreground">{item.reportedBy}</td>
+                  <td className="py-3 px-2 text-left text-[11px] font-medium text-muted-foreground">{item.time}</td>
+
                   <td className="py-2.5 px-3 text-right">
                     <div className="flex items-center justify-end gap-2">
-                       <button className="bg-white hover:bg-slate-100 text-slate-500 hover:text-slate-700 border border-slate-200 text-[10px] font-bold px-3 py-1.5 rounded-full shadow-sm transition-all focus:ring-2 ring-slate-100 outline-none focus:outline-none">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        className="h-7 rounded-full px-3 text-[10px] font-bold"
+                      >
                         Ignore
-                       </button>
-                       <button className="bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-100 hover:border-blue-200 text-[10px] font-bold px-3 py-1.5 rounded-full shadow-sm transition-all flex items-center gap-1.5 focus:ring-2 ring-blue-100 outline-none focus:outline-none">
-                        <FolderOpen className="size-3.5 fill-blue-600/20 stroke-blue-600" /> View file
-                       </button>
-                       <button className="bg-white hover:bg-red-50 text-red-500 border border-slate-200 hover:border-red-200 text-[10px] font-bold px-3 py-1.5 rounded-full shadow-sm transition-all focus:ring-2 ring-red-100 outline-none focus:outline-none">
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        className="h-7 rounded-full border-primary/30 px-3 text-[10px] font-bold text-primary hover:bg-primary/10 hover:text-primary"
+                      >
+                        <FolderOpen className="size-3.5" />
+                        View file
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        className="h-7 rounded-full border-destructive/30 px-3 text-[10px] font-bold text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      >
                         Delete
-                       </button>
-                       <button className="bg-white hover:bg-rose-50 text-rose-600 border border-slate-200 hover:border-rose-200 text-[10px] font-bold px-3 py-1.5 rounded-full shadow-sm transition-all flex items-center gap-1.5 focus:ring-2 ring-rose-100 outline-none focus:outline-none">
-                        <TriangleAlert className="size-3.5 fill-white stroke-rose-600" /> Ban
-                       </button>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        className="h-7 rounded-full border-destructive/30 px-3 text-[10px] font-bold text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <TriangleAlert className="size-3.5" />
+                        Ban
+                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -90,7 +115,6 @@ export default function ReportsPage() {
             </tbody>
           </table>
         </div>
-
       </div>
     </div>
   )
