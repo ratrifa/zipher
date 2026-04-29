@@ -29,14 +29,21 @@ export function AdminSidebar() {
   const pathname = usePathname()
 
   return (
-    <aside className="flex h-full flex-col bg-background pt-6 px-4 border-r border-slate-200">
-      <nav className="space-y-2">
+    <aside className="flex h-full flex-col bg-sidebar p-4 text-sidebar-foreground">
+      <div className="px-2 pb-4">
+        <p className="text-xs font-medium tracking-[0.14em] text-sidebar-foreground/70 uppercase">
+          Admin Panel
+        </p>
+        <p className="mt-1 text-lg font-semibold">Moderation</p>
+      </div>
+
+      <nav className="space-y-1">
         {menuItems.map((item) => {
           const Icon = item.icon
           const isActive =
             "match" in item && item.match
               ? item.match.includes(pathname)
-              : item.href === pathname
+              : pathname === item.href || pathname.startsWith(`${item.href}/`)
 
           return (
             <Button
@@ -44,10 +51,10 @@ export function AdminSidebar() {
               asChild
               variant="ghost"
               className={[
-                "w-full justify-start gap-4 rounded-full h-11 px-6 font-medium text-[15px]",
+                "h-12 w-full justify-start gap-3 rounded-3xl px-4 text-base",
                 isActive
-                  ? "bg-[#eff5ff] text-blue-500 hover:bg-[#eff5ff]/80 hover:text-blue-500"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/80"
+                  : "text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
               ].join(" ")}
             >
               <Link href={item.href}>
@@ -58,6 +65,10 @@ export function AdminSidebar() {
           )
         })}
       </nav>
+
+      <div className="mt-auto px-2 pt-4 text-xs text-sidebar-foreground/60">
+        Role: Super Admin
+      </div>
     </aside>
   )
 }

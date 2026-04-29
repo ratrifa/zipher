@@ -187,7 +187,7 @@ export function MyFilesSection() {
           onFilterChange={setFileFilter}
         />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className=" grid gap-4 pt-1.5 sm:grid-cols-2 xl:grid-cols-3">
           {files.map((file) => (
             <FileCard
               key={file.name}
