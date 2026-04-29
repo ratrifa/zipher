@@ -18,17 +18,23 @@ Route::prefix('v1')->group(function () {
         Route::get('users/{id}/public-key', [AuthController::class, 'getPublicKey']);
 
         // Files
+        Route::get('files/trash', [FileController::class, 'trash']);
         Route::get('files', [FileController::class, 'index']);
         Route::post('files/upload', [FileController::class, 'upload']);
         Route::get('files/{id}/download', [FileController::class, 'download']);
         Route::patch('files/{id}', [FileController::class, 'update']);
         Route::delete('files/{id}', [FileController::class, 'destroy']);
+        Route::post('files/{id}/restore', [FileController::class, 'restore']);
+        Route::delete('files/{id}/force', [FileController::class, 'forceDelete']);
 
         // Folders
+        Route::get('folders/trash', [FolderController::class, 'trash']);
         Route::get('folders', [FolderController::class, 'index']);
         Route::post('folders', [FolderController::class, 'store']);
         Route::patch('folders/{id}', [FolderController::class, 'update']);
         Route::delete('folders/{id}', [FolderController::class, 'destroy']);
+        Route::post('folders/{id}/restore', [FolderController::class, 'restore']);
+        Route::delete('folders/{id}/force', [FolderController::class, 'forceDelete']);
 
         // Sharing
         Route::post('share', [ShareController::class, 'share']);

@@ -132,13 +132,44 @@ class FileController extends Controller
     public function destroy(string $id): JsonResponse
     {
         $file = File::where('id', $id)->where('user_id', auth()->id())->firstOrFail();
-        
-        Storage::disk('public')->delete($file->storage_path);
         $file->delete();
 
         return response()->json([
             'success' => true,
-            'message' => 'File deleted',
+            'message' => 'File moved to trash',
+        ]);
+    }
+
+    public function trash(): JsonResponse
+    {
+        $files = File::onlyTrashed()->where('user_id', auth()->id())->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $files,
+        ]);
+    }
+
+    public function restore(string $id): JsonResponse
+    {
+        $file = File::onlyTrashed()->where('id', $id)->where('user_id', auth()->id())->firstOrFail();
+        $file->restore();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'File restored',
+        ]);
+    }
+
+    public function forceDelete(string $id): JsonResponse
+    {
+        $file = File::onlyTrashed()->where('id', $id)->where('user_id', auth()->id())->firstOrFail();
+        Storage::disk('public')->delete($file->storage_path);
+        $file->forceDelete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'File permanently deleted',
         ]);
     }
 }
