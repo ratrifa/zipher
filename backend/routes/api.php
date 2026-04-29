@@ -10,6 +10,8 @@ Route::prefix('v1')->group(function () {
     // Auth
     Route::post('register', [AuthController::class, 'register']);
     Route::post('login', [AuthController::class, 'login']);
+    Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
+    Route::post('reset-password', [AuthController::class, 'resetPassword']);
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('me', [AuthController::class, 'me']);
@@ -19,6 +21,8 @@ Route::prefix('v1')->group(function () {
 
         // Files
         Route::get('files/trash', [FileController::class, 'trash']);
+        Route::get('files/starred', [FileController::class, 'starred']);
+        Route::post('files/{id}/star', [FileController::class, 'toggleStar']);
         Route::get('files', [FileController::class, 'index']);
         Route::post('files/upload', [FileController::class, 'upload']);
         Route::get('files/{id}/download', [FileController::class, 'download']);

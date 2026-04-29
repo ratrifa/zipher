@@ -140,6 +140,29 @@ class FileController extends Controller
         ]);
     }
 
+    public function starred(): JsonResponse
+    {
+        $files = File::where('user_id', auth()->id())
+            ->where('is_starred', true)
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $files,
+        ]);
+    }
+
+    public function toggleStar(string $id): JsonResponse
+    {
+        $file = File::where('id', $id)->where('user_id', auth()->id())->firstOrFail();
+        $file->update(['is_starred' => !$file->is_starred]);
+
+        return response()->json([
+            'success' => true,
+            'data' => ['is_starred' => $file->is_starred],
+        ]);
+    }
+
     public function trash(): JsonResponse
     {
         $files = File::onlyTrashed()->where('user_id', auth()->id())->get();
