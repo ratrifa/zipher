@@ -1,8 +1,10 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\ContentsController;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\FolderController;
+use App\Http\Controllers\SearchController;
 use App\Http\Controllers\ShareController;
 use Illuminate\Support\Facades\Route;
 
@@ -19,6 +21,12 @@ Route::prefix('v1')->group(function () {
         Route::get('users/search', [AuthController::class, 'searchUsers']);
         Route::get('users/{id}/public-key', [AuthController::class, 'getPublicKey']);
 
+        // Unified contents (files + folders mixed)
+        Route::get('contents', [ContentsController::class, 'index']);
+
+        // Smart search
+        Route::get('search', [SearchController::class, 'search']);
+
         // Files
         Route::get('files/trash', [FileController::class, 'trash']);
         Route::get('files/starred', [FileController::class, 'starred']);
@@ -30,6 +38,9 @@ Route::prefix('v1')->group(function () {
         Route::delete('files/{id}', [FileController::class, 'destroy']);
         Route::post('files/{id}/restore', [FileController::class, 'restore']);
         Route::delete('files/{id}/force', [FileController::class, 'forceDelete']);
+        Route::get('files/{id}/tags', [FileController::class, 'tags']);
+        Route::put('files/{id}/tags', [FileController::class, 'replaceTags']);
+        Route::delete('files/{id}/tags/{tagId}', [FileController::class, 'destroyTag']);
 
         // Folders
         Route::get('folders/trash', [FolderController::class, 'trash']);
