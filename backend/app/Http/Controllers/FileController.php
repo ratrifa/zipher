@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\File;
+use App\Models\FileTag;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class FileController extends Controller
@@ -26,18 +29,37 @@ class FileController extends Controller
 
     public function upload(Request $request): JsonResponse
     {
+        // tags may arrive as a JSON string in multipart uploads
+        if (is_string($request->tags)) {
+            $request->merge(['tags' => json_decode($request->tags, true)]);
+        }
+
         $validator = Validator::make($request->all(), [
             'file' => 'required|file|max:524288', // 512MB
             'name' => 'required|string|max:255',
             'mime_type' => 'required|string',
             'aes_key_encrypted' => 'required|string',
-            'folder_id' => 'nullable|uuid|exists:folders,id',
+            'folder_id'   => 'nullable|uuid|exists:folders,id',
+            'tags'        => 'nullable|array|max:50',
+            'tags.*.name' => 'required_with:tags|string|max:100',
+            'tags.*.score'=> 'required_with:tags|numeric|min:0',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => $validator->errors()->first(),
+            ], 422);
+        }
+
+        $user = auth()->user();
+        $incomingSize = $request->file('file')->getSize();
+
+        if ($user->storageUsed() + $incomingSize > $user->storage_limit) {
+            $available = $user->storage_limit - $user->storageUsed();
+            return response()->json([
+                'success' => false,
+                'message' => 'Storage limit exceeded. Available: ' . number_format($available / 1073741824, 2) . ' GB',
             ], 422);
         }
 
@@ -53,9 +75,22 @@ class FileController extends Controller
             'aes_key_encrypted' => $request->aes_key_encrypted,
         ]);
 
+        if ($request->filled('tags')) {
+            FileTag::insert(
+                collect($request->tags)->map(fn($t) => [
+                    'id'         => (string) Str::uuid(),
+                    'file_id'    => $file->id,
+                    'name'       => $t['name'],
+                    'score'      => $t['score'],
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ])->all()
+            );
+        }
+
         return response()->json([
             'success' => true,
-            'data' => $file,
+            'data'    => $file->load('tags'),
             'message' => 'File uploaded successfully',
         ], 201);
     }
@@ -193,6 +228,68 @@ class FileController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'File permanently deleted',
+        ]);
+    }
+
+    public function tags(string $id): JsonResponse
+    {
+        $file = File::where('id', $id)->where('user_id', auth()->id())->firstOrFail();
+
+        return response()->json([
+            'success' => true,
+            'data'    => $file->tags,
+        ]);
+    }
+
+    public function replaceTags(Request $request, string $id): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'tags'        => 'required|array',
+            'tags.*.name' => 'required|string|max:100',
+            'tags.*.score'=> 'required|numeric|min:0',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+            ], 422);
+        }
+
+        $file = File::where('id', $id)->where('user_id', auth()->id())->firstOrFail();
+
+        DB::transaction(function () use ($file, $request) {
+            FileTag::where('file_id', $file->id)->delete();
+
+            if (!empty($request->tags)) {
+                FileTag::insert(
+                    collect($request->tags)->map(fn($t) => [
+                        'id'         => (string) Str::uuid(),
+                        'file_id'    => $file->id,
+                        'name'       => $t['name'],
+                        'score'      => $t['score'],
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ])->all()
+                );
+            }
+        });
+
+        return response()->json([
+            'success' => true,
+            'data'    => $file->fresh()->load('tags'),
+        ]);
+    }
+
+    public function destroyTag(string $id, string $tagId): JsonResponse
+    {
+        $file = File::where('id', $id)->where('user_id', auth()->id())->firstOrFail();
+        $tag  = FileTag::where('id', $tagId)->where('file_id', $file->id)->firstOrFail();
+        $tag->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Tag removed',
         ]);
     }
 }

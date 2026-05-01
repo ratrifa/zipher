@@ -30,4 +30,9 @@ class File extends Model
     {
         return $this->hasMany(SharedFile::class);
     }
+
+    public function tags()
+    {
+        return $this->hasMany(FileTag::class)->orderBy('score', 'desc');
+    }
 }
