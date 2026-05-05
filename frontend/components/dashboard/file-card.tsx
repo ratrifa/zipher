@@ -18,6 +18,10 @@ type FileCardProps = {
   icon: LucideIcon
   iconClassName: string
   layout?: "grid" | "list"
+  onOpen?: () => void
+  onRename?: () => void
+  onMove?: () => void
+  onDelete?: () => void
 }
 
 export function FileCard({
@@ -27,6 +31,10 @@ export function FileCard({
   icon: Icon,
   iconClassName,
   layout = "grid",
+  onOpen,
+  onRename,
+  onMove,
+  onDelete,
 }: FileCardProps) {
   const actions = (
     <DropdownMenu>
@@ -41,10 +49,18 @@ export function FileCard({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-40">
-        <DropdownMenuItem>Open</DropdownMenuItem>
-        <DropdownMenuItem>Rename</DropdownMenuItem>
-        <DropdownMenuItem>Move</DropdownMenuItem>
-        <DropdownMenuItem variant="destructive">Delete</DropdownMenuItem>
+        <DropdownMenuItem onSelect={onOpen} disabled={!onOpen}>
+          Open
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={onRename} disabled={!onRename}>
+          Rename
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={onMove} disabled={!onMove}>
+          Move
+        </DropdownMenuItem>
+        <DropdownMenuItem variant="destructive" onSelect={onDelete} disabled={!onDelete}>
+          Delete
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )

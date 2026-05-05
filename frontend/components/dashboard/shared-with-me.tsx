@@ -1,174 +1,197 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import type { LucideIcon } from "lucide-react"
 import {
   FileImage,
   FileSpreadsheet,
   FileText,
   Folder,
   Presentation,
-  ChevronDown,
 } from "lucide-react"
 
 import { FileCard } from "@/components/dashboard/file-card"
 import { FileLayoutSwitch } from "@/components/dashboard/file-layout-switch"
 import {
   FilesListTable,
+  type FileListItem,
   type FileFilterOption,
 } from "@/components/dashboard/files-list-table"
 import { Button } from "@/components/ui/button"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+  downloadFile,
+  formatBytes,
+  formatDateTime,
+  getSharedByMe,
+  getSharedWithMe,
+  revokeShare,
+  type SharedFileRecord,
+} from "@/lib/api"
+import { useAuth } from "@/lib/auth"
 
-const baseSharedFiles = [
-  {
-    name: "CV_Naufal Raff Hidayat.pdf",
-    meta: "PDF • 1.2 MB",
-    updatedAt: "9 Apr",
-    owner: "naufalraff21@gmail.com",
-    sharedBy: "naufalraff21@gmail.com",
-    size: "1.2 MB",
-    location: "Shared",
-    icon: FileText,
-    iconClassName: "bg-orange-100 text-orange-700",
-  },
-  {
-    name: "Salinan dari Template - Formulir Pendaftaran Pitching.docx",
-    meta: "Word Document • 856 KB",
-    updatedAt: "7 Apr",
-    owner: "zizajsa@gmail.com",
-    sharedBy: "zizajsa@gmail.com",
-    size: "856 KB",
-    location: "Shared",
-    icon: FileText,
-    iconClassName: "bg-blue-100 text-blue-700",
-  },
-  {
-    name: "Elevate_Result",
-    meta: "Folder • 12 items",
-    updatedAt: "6 Apr",
-    owner: "partnershiptelu@gmail.c...",
-    sharedBy: "partnershiptelu@gmail.c...",
-    size: "2.4 GB",
-    location: "Shared",
-    icon: Folder,
-    iconClassName: "bg-blue-100 text-blue-700",
-  },
-  {
-    name: "SEPATU",
-    meta: "Folder • 8 items",
-    updatedAt: "6 Apr",
-    owner: "hayurashop@gmail.com",
-    sharedBy: "hayurashop@gmail.com",
-    size: "1.8 GB",
-    location: "Shared",
-    icon: Folder,
-    iconClassName: "bg-purple-100 text-purple-700",
-  },
-  {
-    name: "Template Proposal new.zip",
-    meta: "ZIP Archive • 3.2 MB",
-    updatedAt: "6 Apr",
-    owner: "mandalasatria@gmail.com",
-    sharedBy: "mandalasatria@gmail.com",
-    size: "3.2 MB",
-    location: "Shared",
-    icon: FileText,
-    iconClassName: "bg-gray-100 text-gray-700",
-  },
-  {
-    name: "Financial Report Q1 2026",
-    meta: "Google Sheets • 2.1 MB",
-    updatedAt: "5 Apr",
-    owner: "finance@company.com",
-    sharedBy: "finance@company.com",
-    size: "2.1 MB",
-    location: "Shared",
-    icon: FileSpreadsheet,
-    iconClassName: "bg-emerald-100 text-emerald-700",
-  },
-]
+type DisplayItem = FileListItem & {
+  sizeBytes: number
+}
 
-const extraFileIcons = [
-  Folder,
-  FileSpreadsheet,
-  FileText,
-  FileImage,
-  Presentation,
-]
-const extraFileStyles = [
-  "bg-blue-100 text-blue-700",
-  "bg-emerald-100 text-emerald-700",
-  "bg-orange-100 text-orange-700",
-  "bg-violet-100 text-violet-700",
-  "bg-rose-100 text-rose-700",
-]
-const extraFileMeta = [
-  "Folder • 12 items",
-  "Google Sheets • 860 KB",
-  "PDF • 2.4 MB",
-  "Image • 4.2 MB",
-  "Presentation • 6 slides",
-]
-const owners = ["user1@gmail.com", "user2@gmail.com", "user3@gmail.com", "user4@gmail.com", "user5@gmail.com"]
-const sizes = ["840 KB", "2.4 MB", "5.8 MB", "78 MB", "1.1 GB"]
+function fileVisual(file: SharedFileRecord["file"]): {
+  icon: LucideIcon
+  iconClassName: string
+} {
+  const mime = file?.mime_type?.toLowerCase() ?? ""
 
-const generatedSharedFiles = Array.from({ length: 9 }, (_, index) => {
-  const variant = index % 5
-  const fileNumber = index + 7
-  const daysAgo = (index % 7) + 1
+  if (mime.includes("spreadsheet") || mime.includes("excel") || mime.includes("csv")) {
+    return {
+      icon: FileSpreadsheet,
+      iconClassName: "bg-emerald-100 text-emerald-700",
+    }
+  }
+
+  if (mime.includes("image")) {
+    return {
+      icon: FileImage,
+      iconClassName: "bg-violet-100 text-violet-700",
+    }
+  }
+
+  if (mime.includes("presentation") || mime.includes("powerpoint")) {
+    return {
+      icon: Presentation,
+      iconClassName: "bg-rose-100 text-rose-700",
+    }
+  }
+
+  if (!mime || mime.includes("folder")) {
+    return {
+      icon: Folder,
+      iconClassName: "bg-blue-100 text-blue-700",
+    }
+  }
 
   return {
-    name: `Shared File ${fileNumber}`,
-    meta: extraFileMeta[variant],
-    updatedAt: `${daysAgo} Apr`,
-    owner: owners[index % owners.length],
-    sharedBy: owners[index % owners.length],
-    size: sizes[index % sizes.length],
-    location: "Shared",
-    icon: extraFileIcons[variant],
-    iconClassName: extraFileStyles[variant],
+    icon: FileText,
+    iconClassName: "bg-orange-100 text-orange-700",
   }
-})
+}
 
-const sharedFiles = [...baseSharedFiles, ...generatedSharedFiles]
+function decodeBase64ToBlob(base64Text: string, mimeType: string) {
+  const binaryText = window.atob(base64Text)
+  const bytes = new Uint8Array(binaryText.length)
 
-function parseSizeToBytes(size: string) {
-  const match = size.trim().match(/^(\d+(?:\.\d+)?)\s*(KB|MB|GB)$/i)
+  for (let index = 0; index < binaryText.length; index += 1) {
+    bytes[index] = binaryText.charCodeAt(index)
+  }
 
-  if (!match) return 0
-
-  const value = Number(match[1])
-  const unit = match[2].toUpperCase()
-
-  if (unit === "KB") return value * 1024
-  if (unit === "MB") return value * 1024 * 1024
-  return value * 1024 * 1024 * 1024
+  return new Blob([bytes], { type: mimeType || "application/octet-stream" })
 }
 
 export function SharedWithMeSection() {
+  const { token } = useAuth()
+
   const [isListView, setIsListView] = useState(true)
   const [fileFilter, setFileFilter] = useState<FileFilterOption>("none")
-  const [typeFilter, setTypeFilter] = useState<string>("all")
-  const [personFilter, setPersonFilter] = useState<string>("all")
-  const [modifiedFilter, setModifiedFilter] = useState<string>("all")
   const [sourceFilter, setSourceFilter] = useState<string>("all")
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [busyAction, setBusyAction] = useState<string | null>(null)
+  const [sharedWithMe, setSharedWithMe] = useState<SharedFileRecord[]>([])
+  const [sharedByMe, setSharedByMe] = useState<SharedFileRecord[]>([])
+
+  const loadSharedItems = useCallback(async () => {
+    if (!token) {
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      const [withMe, byMe] = await Promise.all([
+        getSharedWithMe(token),
+        getSharedByMe(token),
+      ])
+
+      setSharedWithMe(withMe)
+      setSharedByMe(byMe)
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Gagal memuat data berbagi"
+      )
+    } finally {
+      setLoading(false)
+    }
+  }, [token])
+
+  useEffect(() => {
+    void loadSharedItems()
+  }, [loadSharedItems])
+
+  const sharedWithMeItems = useMemo<DisplayItem[]>(() => {
+    return sharedWithMe.map((share) => {
+      const visual = fileVisual(share.file)
+
+      return {
+        id: share.file?.id,
+        shareId: share.id,
+        kind: "file",
+        canRevoke: false,
+        name: share.file?.name ?? "Unknown file",
+        owner: share.owner?.email ?? share.owner?.username ?? "Unknown owner",
+        updatedAt: formatDateTime(share.shared_at),
+        size: share.file ? formatBytes(share.file.size) : "-",
+        sizeBytes: share.file?.size ?? 0,
+        location: "Shared with me",
+        icon: visual.icon,
+        iconClassName: visual.iconClassName,
+      }
+    })
+  }, [sharedWithMe])
+
+  const sharedByMeItems = useMemo<DisplayItem[]>(() => {
+    return sharedByMe.map((share) => {
+      const visual = fileVisual(share.file)
+
+      return {
+        id: share.file?.id,
+        shareId: share.id,
+        kind: "file",
+        canRevoke: true,
+        name: share.file?.name ?? "Unknown file",
+        owner: share.receiver?.email ?? share.receiver?.username ?? "Unknown receiver",
+        updatedAt: formatDateTime(share.shared_at),
+        size: share.file ? formatBytes(share.file.size) : "-",
+        sizeBytes: share.file?.size ?? 0,
+        location: "Shared by me",
+        icon: visual.icon,
+        iconClassName: visual.iconClassName,
+      }
+    })
+  }, [sharedByMe])
+
+  const sharedFiles = useMemo(() => {
+    if (sourceFilter === "shared") {
+      return sharedWithMeItems
+    }
+
+    if (sourceFilter === "team") {
+      return sharedByMeItems
+    }
+
+    return [...sharedWithMeItems, ...sharedByMeItems]
+  }, [sharedByMeItems, sharedWithMeItems, sourceFilter])
 
   const filteredFiles = useMemo(() => {
-    let filtered = [...sharedFiles]
+    const filtered = [...sharedFiles]
 
     if (fileFilter === "smallest") {
-      filtered.sort((a, b) => parseSizeToBytes(a.size) - parseSizeToBytes(b.size))
+      filtered.sort((a, b) => a.sizeBytes - b.sizeBytes)
     } else if (fileFilter === "largest") {
-      filtered.sort((a, b) => parseSizeToBytes(b.size) - parseSizeToBytes(a.size))
+      filtered.sort((a, b) => b.sizeBytes - a.sizeBytes)
     } else if (fileFilter === "folder-first") {
       filtered.sort((a, b) => {
-        const aIsFolder = a.meta.startsWith("Folder")
-        const bIsFolder = b.meta.startsWith("Folder")
+        const aIsFolder = a.kind === "folder"
+        const bIsFolder = b.kind === "folder"
 
         if (aIsFolder === bIsFolder) return a.name.localeCompare(b.name)
         return aIsFolder ? -1 : 1
@@ -176,7 +199,65 @@ export function SharedWithMeSection() {
     }
 
     return filtered
-  }, [fileFilter])
+  }, [fileFilter, sharedFiles])
+
+  async function handleDownload(item: FileListItem) {
+    if (!token || item.kind !== "file" || !item.id) {
+      return
+    }
+
+    setBusyAction("Menyiapkan unduhan...")
+
+    try {
+      const payload = await downloadFile(token, item.id)
+      const fileBlob = decodeBase64ToBlob(payload.encrypted_data, payload.mime_type)
+      const blobUrl = URL.createObjectURL(fileBlob)
+      const anchor = document.createElement("a")
+
+      anchor.href = blobUrl
+      anchor.download = payload.name || item.name
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+
+      URL.revokeObjectURL(blobUrl)
+    } catch (actionError) {
+      setError(
+        actionError instanceof Error
+          ? actionError.message
+          : "Gagal mengunduh file"
+      )
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
+  async function handleRevoke(item: FileListItem) {
+    if (!token || !item.canRevoke || !item.shareId) {
+      return
+    }
+
+    const confirmed = window.confirm(`Cabut akses berbagi untuk ${item.name}?`)
+
+    if (!confirmed) {
+      return
+    }
+
+    setBusyAction("Mencabut akses...")
+
+    try {
+      await revokeShare(token, item.shareId)
+      await loadSharedItems()
+    } catch (actionError) {
+      setError(
+        actionError instanceof Error
+          ? actionError.message
+          : "Gagal mencabut akses"
+      )
+    } finally {
+      setBusyAction(null)
+    }
+  }
 
   return (
     <section>
@@ -188,87 +269,27 @@ export function SharedWithMeSection() {
         </div>
 
         <div className="flex flex-wrap gap-2 items-center mb-4">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
-                Jenis
-                <ChevronDown className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onSelect={() => setTypeFilter("all")}>
-                Semua
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setTypeFilter("folder")}>
-                Folder
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setTypeFilter("file")}>
-                File
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
-                Orang
-                <ChevronDown className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onSelect={() => setPersonFilter("all")}>
-                Semua orang
-              </DropdownMenuItem>
-              {owners.map((owner) => (
-                <DropdownMenuItem
-                  key={owner}
-                  onSelect={() => setPersonFilter(owner)}
-                >
-                  {owner}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
-                Dimodifikasi
-                <ChevronDown className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onSelect={() => setModifiedFilter("all")}>
-                Anytime
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setModifiedFilter("week")}>
-                Minggu ini
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setModifiedFilter("month")}>
-                Bulan ini
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
-                Sumber
-                <ChevronDown className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onSelect={() => setSourceFilter("all")}>
-                Semua
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setSourceFilter("shared")}>
-                Dibagikan langsung
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setSourceFilter("team")}>
-                Dari tim
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button
+            variant={sourceFilter === "all" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setSourceFilter("all")}
+          >
+            Semua
+          </Button>
+          <Button
+            variant={sourceFilter === "shared" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setSourceFilter("shared")}
+          >
+            Shared With Me
+          </Button>
+          <Button
+            variant={sourceFilter === "team" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setSourceFilter("team")}
+          >
+            Shared By Me
+          </Button>
 
           <div className="ml-auto">
             <FileLayoutSwitch
@@ -279,6 +300,10 @@ export function SharedWithMeSection() {
         </div>
       </div>
 
+      {busyAction ? <p className="pb-3 text-sm text-muted-foreground">{busyAction}</p> : null}
+      {error ? <p className="pb-3 text-sm text-destructive">{error}</p> : null}
+      {loading ? <p className="pb-3 text-sm text-muted-foreground">Memuat data...</p> : null}
+
       {isListView ? (
         <FilesListTable
           files={filteredFiles}
@@ -286,18 +311,22 @@ export function SharedWithMeSection() {
           onFilterChange={setFileFilter}
           showTrashActions={false}
           showStarredView={false}
+          onDownload={handleDownload}
+          onDelete={handleRevoke}
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filteredFiles.map((file) => (
             <FileCard
-              key={file.name}
+              key={`${file.shareId}-${file.id ?? file.name}`}
               name={file.name}
-              meta={file.meta}
+              meta={file.location ?? "Shared"}
               updatedAt={file.updatedAt}
               icon={file.icon}
               iconClassName={file.iconClassName}
               layout="grid"
+              onOpen={() => void handleDownload(file)}
+              onDelete={file.canRevoke ? () => void handleRevoke(file) : undefined}
             />
           ))}
         </div>

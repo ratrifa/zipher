@@ -23,7 +23,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 
-type FileListItem = {
+export type FileListItem = {
+  id?: string
+  kind?: "file" | "folder"
+  shareId?: string
+  canRevoke?: boolean
   name: string
   owner: string
   updatedAt: string
@@ -42,6 +46,13 @@ type FilesListTableProps = {
   onFilterChange: (value: FileFilterOption) => void
   showTrashActions?: boolean
   showStarredView?: boolean
+  onOpen?: (file: FileListItem) => void
+  onShare?: (file: FileListItem) => void
+  onDownload?: (file: FileListItem) => void
+  onRename?: (file: FileListItem) => void
+  onMove?: (file: FileListItem) => void
+  onDelete?: (file: FileListItem) => void
+  onRestore?: (file: FileListItem) => void
 }
 
 export function FilesListTable({
@@ -50,7 +61,16 @@ export function FilesListTable({
   onFilterChange,
   showTrashActions = false,
   showStarredView = false,
+  onOpen,
+  onShare,
+  onDownload,
+  onRename,
+  onMove,
+  onDelete,
+  onRestore,
 }: FilesListTableProps) {
+  void showStarredView
+
   const tableColumns = showTrashActions ? (
     <colgroup>
       <col style={{ width: "28%" }} />
@@ -148,9 +168,11 @@ export function FilesListTable({
           <tbody className="divide-y divide-border">
             {files.map((file) => {
               const Icon = file.icon
+              const isFolder = file.kind === "folder"
+              const deleteDisabled = !onDelete || (!showTrashActions && file.canRevoke === false)
 
               return (
-                <tr key={file.name} className="group hover:bg-muted/30">
+                <tr key={file.id ?? file.name} className="group hover:bg-muted/30">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <span
@@ -189,6 +211,8 @@ export function FilesListTable({
                                 size="icon"
                                 className="pointer-events-none size-8 rounded-full opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100"
                                 aria-label="Share file"
+                                onClick={() => onShare?.(file)}
+                                disabled={!onShare || isFolder}
                               >
                                 <UserPlus className="size-4" />
                               </Button>
@@ -202,6 +226,8 @@ export function FilesListTable({
                                 size="icon"
                                 className="pointer-events-none size-8 rounded-full opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100"
                                 aria-label="Download file"
+                                onClick={() => onDownload?.(file)}
+                                disabled={!onDownload || isFolder}
                               >
                                 <Download className="size-4" />
                               </Button>
@@ -215,6 +241,8 @@ export function FilesListTable({
                                 size="icon"
                                 className="pointer-events-none size-8 rounded-full opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100"
                                 aria-label="Edit file"
+                                onClick={() => onRename?.(file)}
+                                disabled={!onRename}
                               >
                                 <Pencil className="size-4" />
                               </Button>
@@ -250,6 +278,8 @@ export function FilesListTable({
                                 size="icon"
                                 className="pointer-events-none size-8 rounded-full opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100"
                                 aria-label="Download file"
+                                onClick={() => onDownload?.(file)}
+                                disabled={!onDownload}
                               >
                                 <Download className="size-4" />
                               </Button>
@@ -263,6 +293,8 @@ export function FilesListTable({
                                 size="icon"
                                 className="pointer-events-none size-8 rounded-full opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100"
                                 aria-label="Restore file"
+                                onClick={() => onRestore?.(file)}
+                                disabled={!onRestore}
                               >
                                 <RotateCcw className="size-4" />
                               </Button>
@@ -286,18 +318,40 @@ export function FilesListTable({
                         <DropdownMenuContent align="end" className="w-40">
                           {showTrashActions ? (
                             <>
-                              <DropdownMenuItem>Pulihkan</DropdownMenuItem>
-                              <DropdownMenuItem variant="destructive">
+                              <DropdownMenuItem onSelect={() => onRestore?.(file)}>
+                                Pulihkan
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                variant="destructive"
+                                onSelect={() => onDelete?.(file)}
+                                disabled={deleteDisabled}
+                              >
                                 Hapus selamanya
                               </DropdownMenuItem>
                             </>
                           ) : (
                             <>
-                              <DropdownMenuItem>Open</DropdownMenuItem>
-                              <DropdownMenuItem>Rename</DropdownMenuItem>
-                              <DropdownMenuItem>Move</DropdownMenuItem>
-                              <DropdownMenuItem variant="destructive">
-                                Delete
+                              <DropdownMenuItem
+                                onSelect={() => onOpen?.(file)}
+                                disabled={!onOpen}
+                              >
+                                Open
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => onRename?.(file)}>
+                                Rename
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onSelect={() => onMove?.(file)}
+                                disabled={!onMove}
+                              >
+                                Move
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                variant="destructive"
+                                onSelect={() => onDelete?.(file)}
+                                disabled={deleteDisabled}
+                              >
+                                {file.canRevoke ? "Revoke" : "Delete"}
                               </DropdownMenuItem>
                             </>
                           )}

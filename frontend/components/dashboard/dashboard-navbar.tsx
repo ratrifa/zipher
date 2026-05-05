@@ -1,6 +1,8 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { useMemo, useState } from "react"
 import { FolderOpen, Search, ChevronDown, Settings, User } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -14,8 +16,39 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
+import { useAuth } from "@/lib/auth"
+
+function getInitials(name: string | undefined) {
+  if (!name) {
+    return "ZU"
+  }
+
+  return name
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase()
+}
 
 export function DashboardNavbar() {
+  const router = useRouter()
+  const { user, logout } = useAuth()
+  const [submittingLogout, setSubmittingLogout] = useState(false)
+
+  const initials = useMemo(() => getInitials(user?.username), [user?.username])
+
+  async function handleLogout() {
+    setSubmittingLogout(true)
+
+    try {
+      await logout()
+      router.replace("/")
+    } finally {
+      setSubmittingLogout(false)
+    }
+  }
+
   return (
     <header className="border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80">
       <div className="flex h-18 items-center gap-4 px-4 md:px-6">
@@ -42,15 +75,18 @@ export function DashboardNavbar() {
                 variant="ghost"
                 className="h-12 overflow-hidden rounded-full px-2 py-0"
                 aria-label="Menu akun"
+                disabled={submittingLogout}
               >
                 <Avatar size="default" className="size-10">
-                  <AvatarFallback>ZA</AvatarFallback>
+                  <AvatarFallback>{initials}</AvatarFallback>
                 </Avatar>
                 <ChevronDown className="size-4 text-muted-foreground" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuLabel>Akun</DropdownMenuLabel>
+              <DropdownMenuLabel>
+                {user?.username ?? "Akun"}
+              </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
                 <Link href="/profile">
@@ -63,6 +99,16 @@ export function DashboardNavbar() {
                   <Settings className="size-4" />
                   Settings
                 </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                onSelect={(event) => {
+                  event.preventDefault()
+                  void handleLogout()
+                }}
+              >
+                {submittingLogout ? "Keluar..." : "Logout"}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

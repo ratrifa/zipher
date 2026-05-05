@@ -20,15 +20,31 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 const createOptions = [
-  { label: "New File", icon: FilePlus2 },
-  { label: "Upload File", icon: FileUp },
-  { label: "Upload Folder", icon: FolderUp },
-  { label: "Google Docs", icon: FileText },
-  { label: "Google Sheets", icon: FileSpreadsheet },
-  { label: "Google Slides", icon: Presentation },
+  { label: "New File", icon: FilePlus2, action: "new-file" },
+  { label: "Upload File", icon: FileUp, action: "upload-file" },
+  { label: "Upload Folder", icon: FolderUp, action: "upload-folder" },
+  { label: "Google Docs", icon: FileText, action: "google-docs" },
+  { label: "Google Sheets", icon: FileSpreadsheet, action: "google-sheets" },
+  { label: "Google Slides", icon: Presentation, action: "google-slides" },
 ]
 
-export function NewDropdownMenu() {
+type NewDropdownMenuProps = {
+  onCreateFolder?: () => void
+  onUploadFile?: () => void
+}
+
+export function NewDropdownMenu({ onCreateFolder, onUploadFile }: NewDropdownMenuProps) {
+  function handleAction(action: string) {
+    if (action === "new-file") {
+      onCreateFolder?.()
+      return
+    }
+
+    if (action === "upload-file") {
+      onUploadFile?.()
+    }
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -42,10 +58,17 @@ export function NewDropdownMenu() {
         {createOptions.map((option, index) => {
           const Icon = option.icon
           const addSeparator = index === 2
+          const isEnabled = option.action === "new-file" || option.action === "upload-file"
 
           return (
             <div key={option.label}>
-              <DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={!isEnabled}
+                onSelect={(event) => {
+                  event.preventDefault()
+                  handleAction(option.action)
+                }}
+              >
                 <Icon className="size-4" />
                 {option.label}
               </DropdownMenuItem>

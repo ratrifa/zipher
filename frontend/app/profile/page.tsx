@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Laptop, Mail, Monitor, Smartphone, Camera, Lock, User, CheckCircle2, AlertCircle } from "lucide-react"
+import { Laptop, Mail, Monitor, Smartphone, Camera } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { DashboardShell } from "@/components/dashboard/dashboard-shell"
