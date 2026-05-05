@@ -11,7 +11,6 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Redundant as create_shared_files_table was updated
         /*
         Schema::table('shared_files', function (Blueprint $table) {
             $table->renameColumn('recipient_id', 'receiver_id');

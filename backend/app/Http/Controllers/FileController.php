@@ -29,7 +29,6 @@ class FileController extends Controller
 
     public function upload(Request $request): JsonResponse
     {
-        // tags may arrive as a JSON string in multipart uploads
         if (is_string($request->tags)) {
             $request->merge(['tags' => json_decode($request->tags, true)]);
         }

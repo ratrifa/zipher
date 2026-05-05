@@ -47,7 +47,7 @@ function formatBytes(bytes: number, decimals = 1) {
 }
 export function DashboardSidebar() {
   const pathname = usePathname()
-  const [storage, setStorage] = useState({ used: 0, limit: 32 * 1024 * 1024 * 1024 }) // Default 32GB
+  const [storage, setStorage] = useState({ used: 0, limit: 32 * 1024 * 1024 * 1024 }) // 32GB
 
   useEffect(() => {
     async function fetchStorage() {
@@ -76,7 +76,6 @@ export function DashboardSidebar() {
 
     fetchStorage()
 
-    // Listen for content updates to refresh storage usage
     window.addEventListener("contents-updated", fetchStorage)
     return () => window.removeEventListener("contents-updated", fetchStorage)
   }, [])

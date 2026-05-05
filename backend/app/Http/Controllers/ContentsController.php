@@ -36,7 +36,7 @@ class ContentsController extends Controller
             'date_asc'      => $items->sortBy('updated_at')->values(),
             'date_desc'     => $items->sortByDesc('updated_at')->values(),
             'files_first'   => $items->sortBy(fn($i) => $i['type'] === 'file' ? 0 : 1)->values(),
-            default         => $items->sortBy(fn($i) => $i['type'] === 'folder' ? 0 : 1)->values(), // folders_first
+            default         => $items->sortBy(fn($i) => $i['type'] === 'folder' ? 0 : 1)->values(),
         };
 
         return response()->json([
@@ -65,7 +65,6 @@ class ContentsController extends Controller
         $userId = auth()->id();
         $targetFolderId = $request->target_folder_id;
 
-        // Verify target folder ownership if not root
         if ($targetFolderId) {
             $targetFolder = Folder::where('id', $targetFolderId)
                 ->where('user_id', $userId)
@@ -79,16 +78,13 @@ class ContentsController extends Controller
             }
         }
 
-        // Move files
         if ($request->has('file_ids')) {
             File::whereIn('id', $request->file_ids)
                 ->where('user_id', $userId)
                 ->update(['folder_id' => $targetFolderId]);
         }
 
-        // Move folders
         if ($request->has('folder_ids')) {
-            // Prevent moving a folder into itself or its descendants
             $folderIds = $request->folder_ids;
             
             if ($targetFolderId) {

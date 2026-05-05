@@ -22,7 +22,7 @@ Route::prefix('v1')->group(function () {
         Route::get('users/search', [AuthController::class, 'searchUsers']);
         Route::get('users/{id}/public-key', [AuthController::class, 'getPublicKey']);
 
-        // Unified contents (files + folders mixed)
+        // File + Folder
         Route::get('contents', [ContentsController::class, 'index']);
         Route::post('contents/move', [ContentsController::class, 'move']);
 

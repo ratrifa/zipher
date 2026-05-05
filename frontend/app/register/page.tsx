@@ -211,8 +211,8 @@ export default function RegisterPage() {
             <DialogTitle>Simpan Private Key Anda</DialogTitle>
             <DialogDescription>
               Private key ini digunakan untuk mendekripsi file Anda. Jangan
-              berikan kepada siapapun. Jika hilang, file Anda tidak dapat
-              dibuka kembali.
+              berikan kepada siapapun. Jika hilang, file Anda tidak dapat dibuka
+              kembali.
             </DialogDescription>
           </DialogHeader>
           <div className="flex items-center space-x-2">
@@ -233,7 +233,11 @@ export default function RegisterPage() {
               className="px-3"
               onClick={handleCopyKey}
             >
-              {isCopied ? <Check className="size-4" /> : <Copy className="size-4" />}
+              {isCopied ? (
+                <Check className="size-4" />
+              ) : (
+                <Copy className="size-4" />
+              )}
             </Button>
           </div>
           <div className="flex items-center space-x-2 pt-2">

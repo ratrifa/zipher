@@ -29,18 +29,40 @@ import { Button } from "@/components/ui/button"
 function getIcon(mimeType: string, isFolder: boolean) {
   if (isFolder) return Folder
   if (mimeType?.includes("image")) return FileImage
-  if (mimeType?.includes("spreadsheet") || mimeType?.includes("excel") || mimeType?.includes("csv")) return FileSpreadsheet
-  if (mimeType?.includes("pdf") || mimeType?.includes("text") || mimeType?.includes("word")) return FileText
-  if (mimeType?.includes("presentation") || mimeType?.includes("powerpoint")) return Presentation
+  if (
+    mimeType?.includes("spreadsheet") ||
+    mimeType?.includes("excel") ||
+    mimeType?.includes("csv")
+  )
+    return FileSpreadsheet
+  if (
+    mimeType?.includes("pdf") ||
+    mimeType?.includes("text") ||
+    mimeType?.includes("word")
+  )
+    return FileText
+  if (mimeType?.includes("presentation") || mimeType?.includes("powerpoint"))
+    return Presentation
   return FileIcon
 }
 
 function getIconClassName(mimeType: string, isFolder: boolean) {
   if (isFolder) return "bg-blue-100 text-blue-700"
   if (mimeType?.includes("image")) return "bg-violet-100 text-violet-700"
-  if (mimeType?.includes("spreadsheet") || mimeType?.includes("excel") || mimeType?.includes("csv")) return "bg-emerald-100 text-emerald-700"
-  if (mimeType?.includes("pdf") || mimeType?.includes("text") || mimeType?.includes("word")) return "bg-orange-100 text-orange-700"
-  if (mimeType?.includes("presentation") || mimeType?.includes("powerpoint")) return "bg-rose-100 text-rose-700"
+  if (
+    mimeType?.includes("spreadsheet") ||
+    mimeType?.includes("excel") ||
+    mimeType?.includes("csv")
+  )
+    return "bg-emerald-100 text-emerald-700"
+  if (
+    mimeType?.includes("pdf") ||
+    mimeType?.includes("text") ||
+    mimeType?.includes("word")
+  )
+    return "bg-orange-100 text-orange-700"
+  if (mimeType?.includes("presentation") || mimeType?.includes("powerpoint"))
+    return "bg-rose-100 text-rose-700"
   return "bg-slate-100 text-slate-700"
 }
 
@@ -66,7 +88,10 @@ export function TrashSection() {
   const [fileFilter, setFileFilter] = useState<FileFilterOption>("none")
   const [items, setItems] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string, isFolder: boolean } | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    id: string
+    isFolder: boolean
+  } | null>(null)
 
   useEffect(() => {
     async function fetchTrash() {
@@ -76,11 +101,17 @@ export function TrashSection() {
       try {
         const [filesRes, foldersRes] = await Promise.all([
           fetch("http://localhost:8000/api/v1/files/trash", {
-            headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/json",
+            },
           }),
           fetch("http://localhost:8000/api/v1/folders/trash", {
-            headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-          })
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/json",
+            },
+          }),
         ])
 
         const filesData = await filesRes.json()
@@ -124,7 +155,6 @@ export function TrashSection() {
 
     fetchTrash()
 
-    // Listen for updates
     window.addEventListener("contents-updated", fetchTrash)
     return () => window.removeEventListener("contents-updated", fetchTrash)
   }, [])
@@ -202,10 +232,10 @@ export function TrashSection() {
       <div className="sticky top-0 z-30 -mx-4 h-20 bg-background px-4 md:-mx-6 md:px-6">
         <div className="grid h-full grid-cols-[1fr_auto] items-center gap-3">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              Trash
-            </h1>
-            <p className="text-sm text-muted-foreground">Deleted files and documents</p>
+            <h1 className="text-2xl font-semibold tracking-tight">Trash</h1>
+            <p className="text-sm text-muted-foreground">
+              Deleted files and documents
+            </p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -244,18 +274,24 @@ export function TrashSection() {
               layout="grid"
               isFolder={file.isFolder}
               onRestore={handleRestore}
-              onForceDelete={(id, isFolder) => setDeleteConfirm({ id, isFolder })}
+              onForceDelete={(id, isFolder) =>
+                setDeleteConfirm({ id, isFolder })
+              }
             />
           ))}
         </div>
       )}
 
-      <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
+      <Dialog
+        open={!!deleteConfirm}
+        onOpenChange={(open) => !open && setDeleteConfirm(null)}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Hapus Selamanya?</DialogTitle>
             <DialogDescription>
-              Tindakan ini tidak dapat dibatalkan. Item akan dihapus secara permanen dari storage Anda.
+              Tindakan ini tidak dapat dibatalkan. Item akan dihapus secara
+              permanen dari storage Anda.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">

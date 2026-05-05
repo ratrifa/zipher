@@ -107,7 +107,6 @@ export function NewDropdownMenu({ currentFolderId }: { currentFolderId?: string 
       for (let i = 0; i < files.length; i++) {
         const file = files[i]
         
-        // Cek ukuran file (Limit 512MB sesuai backend)
         const MAX_FILE_SIZE = 512 * 1024 * 1024 // 512MB
         if (file.size > MAX_FILE_SIZE) {
             throw new Error(`File ${file.name} terlalu besar (Maksimal 512MB)`)

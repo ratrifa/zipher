@@ -78,18 +78,15 @@ export function MyFilesSection() {
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
   const [folderStack, setFolderStack] = useState<{id: string, name: string}[]>([])
   
-  // Rename state
   const [renameItem, setRenameConfirm] = useState<{ id: string, name: string, isFolder: boolean } | null>(null)
   const [newName, setNewName] = useState("")
 
-  // Move state
   const [moveItem, setMoveItem] = useState<{ id: string, name: string, isFolder: boolean } | null>(null)
   const [moveTargetFolders, setMoveTargetFolders] = useState<any[]>([])
   const [moveCurrentFolderId, setMoveCurrentFolderId] = useState<string | null>(null)
   const [moveFolderStack, setMoveFolderStack] = useState<{id: string, name: string}[]>([])
   const [isMoving, setIsMoving] = useState(false)
 
-  // Preview state
   const [previewItem, setPreviewItem] = useState<{name: string, url: string, mimeType: string} | null>(null)
 
   const fetchContents = async () => {
@@ -146,7 +143,6 @@ export function MyFilesSection() {
     return () => window.removeEventListener("contents-updated", handleUpdate)
   }, [currentFolderId])
 
-  // Move Dialog Logic
   useEffect(() => {
     if (!moveItem) return
 
@@ -165,7 +161,6 @@ export function MyFilesSection() {
             })
             const data = await response.json()
             if (data.success) {
-                // Filter out the item itself if it's a folder
                 setMoveTargetFolders(data.data.filter((f: any) => f.id !== moveItem.id))
             }
         } catch (error) {
