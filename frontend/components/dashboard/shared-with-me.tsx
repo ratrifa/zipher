@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import {
   FileImage,
   FileSpreadsheet,
@@ -8,6 +8,7 @@ import {
   Folder,
   Presentation,
   ChevronDown,
+  File as FileIcon,
 } from "lucide-react"
 
 import { FileCard } from "@/components/dashboard/file-card"
@@ -24,159 +25,101 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-const baseSharedFiles = [
-  {
-    name: "CV_Naufal Raff Hidayat.pdf",
-    meta: "PDF • 1.2 MB",
-    updatedAt: "9 Apr",
-    owner: "naufalraff21@gmail.com",
-    sharedBy: "naufalraff21@gmail.com",
-    size: "1.2 MB",
-    location: "Shared",
-    icon: FileText,
-    iconClassName: "bg-orange-100 text-orange-700",
-  },
-  {
-    name: "Salinan dari Template - Formulir Pendaftaran Pitching.docx",
-    meta: "Word Document • 856 KB",
-    updatedAt: "7 Apr",
-    owner: "zizajsa@gmail.com",
-    sharedBy: "zizajsa@gmail.com",
-    size: "856 KB",
-    location: "Shared",
-    icon: FileText,
-    iconClassName: "bg-blue-100 text-blue-700",
-  },
-  {
-    name: "Elevate_Result",
-    meta: "Folder • 12 items",
-    updatedAt: "6 Apr",
-    owner: "partnershiptelu@gmail.c...",
-    sharedBy: "partnershiptelu@gmail.c...",
-    size: "2.4 GB",
-    location: "Shared",
-    icon: Folder,
-    iconClassName: "bg-blue-100 text-blue-700",
-  },
-  {
-    name: "SEPATU",
-    meta: "Folder • 8 items",
-    updatedAt: "6 Apr",
-    owner: "hayurashop@gmail.com",
-    sharedBy: "hayurashop@gmail.com",
-    size: "1.8 GB",
-    location: "Shared",
-    icon: Folder,
-    iconClassName: "bg-purple-100 text-purple-700",
-  },
-  {
-    name: "Template Proposal new.zip",
-    meta: "ZIP Archive • 3.2 MB",
-    updatedAt: "6 Apr",
-    owner: "mandalasatria@gmail.com",
-    sharedBy: "mandalasatria@gmail.com",
-    size: "3.2 MB",
-    location: "Shared",
-    icon: FileText,
-    iconClassName: "bg-gray-100 text-gray-700",
-  },
-  {
-    name: "Financial Report Q1 2026",
-    meta: "Google Sheets • 2.1 MB",
-    updatedAt: "5 Apr",
-    owner: "finance@company.com",
-    sharedBy: "finance@company.com",
-    size: "2.1 MB",
-    location: "Shared",
-    icon: FileSpreadsheet,
-    iconClassName: "bg-emerald-100 text-emerald-700",
-  },
-]
+function getIcon(mimeType: string, isFolder: boolean) {
+  if (isFolder) return Folder
+  if (mimeType?.includes("image")) return FileImage
+  if (mimeType?.includes("spreadsheet") || mimeType?.includes("excel") || mimeType?.includes("csv")) return FileSpreadsheet
+  if (mimeType?.includes("pdf") || mimeType?.includes("text") || mimeType?.includes("word")) return FileText
+  if (mimeType?.includes("presentation") || mimeType?.includes("powerpoint")) return Presentation
+  return FileIcon
+}
 
-const extraFileIcons = [
-  Folder,
-  FileSpreadsheet,
-  FileText,
-  FileImage,
-  Presentation,
-]
-const extraFileStyles = [
-  "bg-blue-100 text-blue-700",
-  "bg-emerald-100 text-emerald-700",
-  "bg-orange-100 text-orange-700",
-  "bg-violet-100 text-violet-700",
-  "bg-rose-100 text-rose-700",
-]
-const extraFileMeta = [
-  "Folder • 12 items",
-  "Google Sheets • 860 KB",
-  "PDF • 2.4 MB",
-  "Image • 4.2 MB",
-  "Presentation • 6 slides",
-]
-const owners = ["user1@gmail.com", "user2@gmail.com", "user3@gmail.com", "user4@gmail.com", "user5@gmail.com"]
-const sizes = ["840 KB", "2.4 MB", "5.8 MB", "78 MB", "1.1 GB"]
+function getIconClassName(mimeType: string, isFolder: boolean) {
+  if (isFolder) return "bg-blue-100 text-blue-700"
+  if (mimeType?.includes("image")) return "bg-violet-100 text-violet-700"
+  if (mimeType?.includes("spreadsheet") || mimeType?.includes("excel") || mimeType?.includes("csv")) return "bg-emerald-100 text-emerald-700"
+  if (mimeType?.includes("pdf") || mimeType?.includes("text") || mimeType?.includes("word")) return "bg-orange-100 text-orange-700"
+  if (mimeType?.includes("presentation") || mimeType?.includes("powerpoint")) return "bg-rose-100 text-rose-700"
+  return "bg-slate-100 text-slate-700"
+}
 
-const generatedSharedFiles = Array.from({ length: 9 }, (_, index) => {
-  const variant = index % 5
-  const fileNumber = index + 7
-  const daysAgo = (index % 7) + 1
+function formatBytes(bytes: number, decimals = 1) {
+  if (bytes === 0) return "0 B"
+  const k = 1024
+  const dm = decimals < 0 ? 0 : decimals
+  const sizes = ["B", "KB", "MB", "GB", "TB"]
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i]
+}
 
-  return {
-    name: `Shared File ${fileNumber}`,
-    meta: extraFileMeta[variant],
-    updatedAt: `${daysAgo} Apr`,
-    owner: owners[index % owners.length],
-    sharedBy: owners[index % owners.length],
-    size: sizes[index % sizes.length],
-    location: "Shared",
-    icon: extraFileIcons[variant],
-    iconClassName: extraFileStyles[variant],
-  }
-})
-
-const sharedFiles = [...baseSharedFiles, ...generatedSharedFiles]
-
-function parseSizeToBytes(size: string) {
-  const match = size.trim().match(/^(\d+(?:\.\d+)?)\s*(KB|MB|GB)$/i)
-
-  if (!match) return 0
-
-  const value = Number(match[1])
-  const unit = match[2].toUpperCase()
-
-  if (unit === "KB") return value * 1024
-  if (unit === "MB") return value * 1024 * 1024
-  return value * 1024 * 1024 * 1024
+function formatDate(dateString: string) {
+  const date = new Date(dateString)
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  })
 }
 
 export function SharedWithMeSection() {
   const [isListView, setIsListView] = useState(true)
   const [fileFilter, setFileFilter] = useState<FileFilterOption>("none")
-  const [typeFilter, setTypeFilter] = useState<string>("all")
-  const [personFilter, setPersonFilter] = useState<string>("all")
-  const [modifiedFilter, setModifiedFilter] = useState<string>("all")
-  const [sourceFilter, setSourceFilter] = useState<string>("all")
+  const [items, setItems] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    async function fetchShared() {
+      const token = localStorage.getItem("zipher_token")
+      if (!token) return
+
+      try {
+        const response = await fetch("http://localhost:8000/api/v1/shared/with-me", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        })
+        const data = await response.json()
+        if (data.success) {
+          const formattedItems = data.data.map((share: any) => {
+            const item = share.file
+            return {
+              id: share.id,
+              name: item.name,
+              meta: `${item.mime_type} • ${formatBytes(item.size)}`,
+              updatedAt: formatDate(share.shared_at),
+              owner: item.owner?.username || "Unknown",
+              sharedBy: item.owner?.email || "Unknown",
+              size: formatBytes(item.size),
+              sizeBytes: item.size || 0,
+              location: "Shared",
+              icon: getIcon(item.mime_type || "", false),
+              iconClassName: getIconClassName(item.mime_type || "", false),
+              isFolder: false,
+            }
+          })
+          setItems(formattedItems)
+        }
+      } catch (error) {
+        console.error("Failed to fetch shared files:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchShared()
+  }, [])
 
   const filteredFiles = useMemo(() => {
-    let filtered = [...sharedFiles]
+    let filtered = [...items]
 
     if (fileFilter === "smallest") {
-      filtered.sort((a, b) => parseSizeToBytes(a.size) - parseSizeToBytes(b.size))
+      filtered.sort((a, b) => a.sizeBytes - b.sizeBytes)
     } else if (fileFilter === "largest") {
-      filtered.sort((a, b) => parseSizeToBytes(b.size) - parseSizeToBytes(a.size))
-    } else if (fileFilter === "folder-first") {
-      filtered.sort((a, b) => {
-        const aIsFolder = a.meta.startsWith("Folder")
-        const bIsFolder = b.meta.startsWith("Folder")
-
-        if (aIsFolder === bIsFolder) return a.name.localeCompare(b.name)
-        return aIsFolder ? -1 : 1
-      })
+      filtered.sort((a, b) => b.sizeBytes - a.sizeBytes)
     }
 
     return filtered
-  }, [fileFilter])
+  }, [fileFilter, items])
 
   return (
     <section>
@@ -196,15 +139,9 @@ export function SharedWithMeSection() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
-              <DropdownMenuItem onSelect={() => setTypeFilter("all")}>
-                Semua
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setTypeFilter("folder")}>
-                Folder
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setTypeFilter("file")}>
-                File
-              </DropdownMenuItem>
+              <DropdownMenuItem>Semua</DropdownMenuItem>
+              <DropdownMenuItem>Folder</DropdownMenuItem>
+              <DropdownMenuItem>File</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -216,17 +153,7 @@ export function SharedWithMeSection() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
-              <DropdownMenuItem onSelect={() => setPersonFilter("all")}>
-                Semua orang
-              </DropdownMenuItem>
-              {owners.map((owner) => (
-                <DropdownMenuItem
-                  key={owner}
-                  onSelect={() => setPersonFilter(owner)}
-                >
-                  {owner}
-                </DropdownMenuItem>
-              ))}
+              <DropdownMenuItem>Semua orang</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -238,15 +165,9 @@ export function SharedWithMeSection() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
-              <DropdownMenuItem onSelect={() => setModifiedFilter("all")}>
-                Anytime
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setModifiedFilter("week")}>
-                Minggu ini
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setModifiedFilter("month")}>
-                Bulan ini
-              </DropdownMenuItem>
+              <DropdownMenuItem>Anytime</DropdownMenuItem>
+              <DropdownMenuItem>Minggu ini</DropdownMenuItem>
+              <DropdownMenuItem>Bulan ini</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -258,15 +179,9 @@ export function SharedWithMeSection() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
-              <DropdownMenuItem onSelect={() => setSourceFilter("all")}>
-                Semua
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setSourceFilter("shared")}>
-                Dibagikan langsung
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setSourceFilter("team")}>
-                Dari tim
-              </DropdownMenuItem>
+              <DropdownMenuItem>Semua</DropdownMenuItem>
+              <DropdownMenuItem>Dibagikan langsung</DropdownMenuItem>
+              <DropdownMenuItem>Dari tim</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -279,7 +194,11 @@ export function SharedWithMeSection() {
         </div>
       </div>
 
-      {isListView ? (
+      {isLoading ? (
+        <div className="flex h-40 items-center justify-center">
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      ) : isListView ? (
         <FilesListTable
           files={filteredFiles}
           activeFilter={fileFilter}
@@ -291,7 +210,8 @@ export function SharedWithMeSection() {
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filteredFiles.map((file) => (
             <FileCard
-              key={file.name}
+              key={file.id}
+              id={file.id}
               name={file.name}
               meta={file.meta}
               updatedAt={file.updatedAt}

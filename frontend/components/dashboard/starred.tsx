@@ -1,12 +1,13 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import {
   FileImage,
   FileSpreadsheet,
   FileText,
   Folder,
   Presentation,
+  File as FileIcon,
 } from "lucide-react"
 
 import { FileCard } from "@/components/dashboard/file-card"
@@ -16,162 +17,140 @@ import {
   type FileFilterOption,
 } from "@/components/dashboard/files-list-table"
 
-const baseStarredFiles = [
-  {
-    name: "tcp.pdf",
-    meta: "PDF • 897 KB",
-    updatedAt: "20 Mar",
-    owner: "Tidak dapat memuat pengguna",
-    size: "897 KB",
-    location: "Dibagikan kepada sa...",
-    icon: FileText,
-    iconClassName: "bg-orange-100 text-orange-700",
-    isStarred: true,
-  },
-  {
-    name: "Project Proposal 2026",
-    meta: "Google Docs • 2.3 MB",
-    updatedAt: "18 Mar",
-    owner: "You",
-    size: "2.3 MB",
-    location: "Projects",
-    icon: FileText,
-    iconClassName: "bg-blue-100 text-blue-700",
-    isStarred: true,
-  },
-  {
-    name: "Budget Forecast",
-    meta: "Google Sheets • 1.5 MB",
-    updatedAt: "15 Mar",
-    owner: "Finance",
-    size: "1.5 MB",
-    location: "Financial",
-    icon: FileSpreadsheet,
-    iconClassName: "bg-emerald-100 text-emerald-700",
-    isStarred: true,
-  },
-  {
-    name: "Design System v2",
-    meta: "Folder • 45 items",
-    updatedAt: "12 Mar",
-    owner: "Design Team",
-    size: "3.2 GB",
-    location: "Design Assets",
-    icon: Folder,
-    iconClassName: "bg-blue-100 text-blue-700",
-    isStarred: true,
-  },
-  {
-    name: "Q1 Presentation",
-    meta: "Presentation • 8 slides",
-    updatedAt: "10 Mar",
-    owner: "You",
-    size: "24 MB",
-    location: "Presentations",
-    icon: Presentation,
-    iconClassName: "bg-rose-100 text-rose-700",
-    isStarred: true,
-  },
-  {
-    name: "Logo Variations",
-    meta: "Image • 5.8 MB",
-    updatedAt: "8 Mar",
-    owner: "Design Team",
-    size: "5.8 MB",
-    location: "Brand Assets",
-    icon: FileImage,
-    iconClassName: "bg-violet-100 text-violet-700",
-    isStarred: true,
-  },
-]
+function getIcon(mimeType: string, isFolder: boolean) {
+  if (isFolder) return Folder
+  if (mimeType?.includes("image")) return FileImage
+  if (mimeType?.includes("spreadsheet") || mimeType?.includes("excel") || mimeType?.includes("csv")) return FileSpreadsheet
+  if (mimeType?.includes("pdf") || mimeType?.includes("text") || mimeType?.includes("word")) return FileText
+  if (mimeType?.includes("presentation") || mimeType?.includes("powerpoint")) return Presentation
+  return FileIcon
+}
 
-const extraFileIcons = [
-  Folder,
-  FileSpreadsheet,
-  FileText,
-  FileImage,
-  Presentation,
-]
-const extraFileStyles = [
-  "bg-blue-100 text-blue-700",
-  "bg-emerald-100 text-emerald-700",
-  "bg-orange-100 text-orange-700",
-  "bg-violet-100 text-violet-700",
-  "bg-rose-100 text-rose-700",
-]
-const extraFileMeta = [
-  "Folder • 12 items",
-  "Google Sheets • 860 KB",
-  "PDF • 2.4 MB",
-  "Image • 4.2 MB",
-  "Presentation • 6 slides",
-]
-const owners = ["You", "saya", "Design Team", "Finance", "Marketing"]
-const sizes = ["840 KB", "2.4 MB", "5.8 MB", "78 MB", "1.1 GB"]
+function getIconClassName(mimeType: string, isFolder: boolean) {
+  if (isFolder) return "bg-blue-100 text-blue-700"
+  if (mimeType?.includes("image")) return "bg-violet-100 text-violet-700"
+  if (mimeType?.includes("spreadsheet") || mimeType?.includes("excel") || mimeType?.includes("csv")) return "bg-emerald-100 text-emerald-700"
+  if (mimeType?.includes("pdf") || mimeType?.includes("text") || mimeType?.includes("word")) return "bg-orange-100 text-orange-700"
+  if (mimeType?.includes("presentation") || mimeType?.includes("powerpoint")) return "bg-rose-100 text-rose-700"
+  return "bg-slate-100 text-slate-700"
+}
 
-const generatedStarredFiles = Array.from({ length: 9 }, (_, index) => {
-  const variant = index % 5
-  const fileNumber = index + 7
-  const daysAgo = (index % 10) + 1
+function formatBytes(bytes: number, decimals = 1) {
+  if (bytes === 0) return "0 B"
+  const k = 1024
+  const dm = decimals < 0 ? 0 : decimals
+  const sizes = ["B", "KB", "MB", "GB", "TB"]
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i]
+}
 
-  return {
-    name: `Starred File ${fileNumber}`,
-    meta: extraFileMeta[variant],
-    updatedAt: `${daysAgo} days ago`,
-    owner: owners[index % owners.length],
-    size: sizes[index % sizes.length],
-    location: ["Projects", "Marketing Assets", "Design Files", "Documents"][index % 4],
-    icon: extraFileIcons[variant],
-    iconClassName: extraFileStyles[variant],
-    isStarred: true,
-  }
-})
-
-const starredFiles = [...baseStarredFiles, ...generatedStarredFiles]
-
-function parseSizeToBytes(size: string) {
-  const match = size.trim().match(/^(\d+(?:\.\d+)?)\s*(KB|MB|GB)$/i)
-
-  if (!match) return 0
-
-  const value = Number(match[1])
-  const unit = match[2].toUpperCase()
-
-  if (unit === "KB") return value * 1024
-  if (unit === "MB") return value * 1024 * 1024
-  return value * 1024 * 1024 * 1024
+function formatDate(dateString: string) {
+  const date = new Date(dateString)
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  })
 }
 
 export function StarredSection() {
   const [isListView, setIsListView] = useState(true)
   const [fileFilter, setFileFilter] = useState<FileFilterOption>("none")
+  const [items, setItems] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    async function fetchStarred() {
+      const token = localStorage.getItem("zipher_token")
+      if (!token) return
+
+      try {
+        const response = await fetch("http://localhost:8000/api/v1/files/starred", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        })
+        const data = await response.json()
+        if (data.success) {
+          const formattedItems = data.data.map((item: any) => ({
+            id: item.id,
+            name: item.name,
+            meta: `${item.mime_type} • ${formatBytes(item.size)}`,
+            updatedAt: formatDate(item.updated_at),
+            owner: "You",
+            size: formatBytes(item.size),
+            sizeBytes: item.size || 0,
+            location: item.folder?.name || "Root",
+            icon: getIcon(item.mime_type || "", false),
+            iconClassName: getIconClassName(item.mime_type || "", false),
+            isFolder: false,
+            isStarred: true,
+          }))
+          setItems(formattedItems)
+        }
+      } catch (error) {
+        console.error("Failed to fetch starred files:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchStarred()
+  }, [])
 
   const filteredFiles = useMemo(() => {
-    const next = [...starredFiles]
+    const next = [...items]
 
     if (fileFilter === "smallest") {
-      next.sort((a, b) => parseSizeToBytes(a.size) - parseSizeToBytes(b.size))
+      next.sort((a, b) => a.sizeBytes - b.sizeBytes)
       return next
     }
 
     if (fileFilter === "largest") {
-      next.sort((a, b) => parseSizeToBytes(b.size) - parseSizeToBytes(a.size))
+      next.sort((a, b) => b.sizeBytes - a.sizeBytes)
       return next
     }
 
-    if (fileFilter === "folder-first") {
-      next.sort((a, b) => {
-        const aIsFolder = a.meta.startsWith("Folder")
-        const bIsFolder = b.meta.startsWith("Folder")
+    return items
+  }, [fileFilter, items])
 
-        if (aIsFolder === bIsFolder) return a.name.localeCompare(b.name)
-        return aIsFolder ? -1 : 1
+  const handleDelete = async (id: string, isFolder: boolean) => {
+    const token = localStorage.getItem("zipher_token")
+    const endpoint = isFolder ? `folders/${id}` : `files/${id}`
+
+    try {
+      const response = await fetch(`http://localhost:8000/api/v1/${endpoint}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
       })
-      return next
+      if (response.ok) {
+        window.dispatchEvent(new Event("contents-updated"))
+      }
+    } catch (error) {
+      console.error("Failed to delete:", error)
     }
+  }
 
-    return starredFiles
-  }, [fileFilter])
+  const handleToggleStar = async (id: string) => {
+    const token = localStorage.getItem("zipher_token")
+    try {
+      const response = await fetch(`http://localhost:8000/api/v1/files/${id}/star`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      })
+      if (response.ok) {
+        window.dispatchEvent(new Event("contents-updated"))
+      }
+    } catch (error) {
+      console.error("Failed to toggle star:", error)
+    }
+  }
 
   return (
     <section>
@@ -193,25 +172,36 @@ export function StarredSection() {
         </div>
       </div>
 
-      {isListView ? (
+      {isLoading ? (
+        <div className="flex h-40 items-center justify-center">
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      ) : isListView ? (
         <FilesListTable
           files={filteredFiles}
           activeFilter={fileFilter}
           onFilterChange={setFileFilter}
           showTrashActions={false}
           showStarredView={true}
+          onDelete={handleDelete}
+          onToggleStar={handleToggleStar}
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filteredFiles.map((file) => (
             <FileCard
-              key={file.name}
+              key={file.id}
+              id={file.id}
               name={file.name}
               meta={file.meta}
               updatedAt={file.updatedAt}
               icon={file.icon}
               iconClassName={file.iconClassName}
               layout="grid"
+              isFolder={file.isFolder}
+              isStarred={file.isStarred}
+              onDelete={handleDelete}
+              onToggleStar={handleToggleStar}
             />
           ))}
         </div>

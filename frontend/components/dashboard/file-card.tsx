@@ -12,21 +12,45 @@ import {
 import { Card, CardContent } from "@/components/ui/card"
 
 type FileCardProps = {
+  id: string
   name: string
   meta: string
   updatedAt: string
   icon: LucideIcon
   iconClassName: string
   layout?: "grid" | "list"
+  isFolder?: boolean
+  isStarred?: boolean
+  onDelete?: (id: string, isFolder: boolean) => void
+  onRestore?: (id: string, isFolder: boolean) => void
+  onForceDelete?: (id: string, isFolder: boolean) => void
+  onToggleStar?: (id: string) => void
+  onFolderClick?: () => void
+  onRename?: (id: string, name: string, isFolder: boolean) => void
+  onMove?: (id: string, name: string, isFolder: boolean) => void
+  onOpen?: (id: string, name: string, isFolder: boolean) => void
+  onDownload?: (id: string, name: string) => void
 }
 
 export function FileCard({
+  id,
   name,
   meta,
   updatedAt,
   icon: Icon,
   iconClassName,
   layout = "grid",
+  isFolder = false,
+  isStarred = false,
+  onDelete,
+  onRestore,
+  onForceDelete,
+  onToggleStar,
+  onFolderClick,
+  onRename,
+  onMove,
+  onOpen,
+  onDownload,
 }: FileCardProps) {
   const actions = (
     <DropdownMenu>
@@ -41,43 +65,25 @@ export function FileCard({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-40">
-        <DropdownMenuItem>Open</DropdownMenuItem>
-        <DropdownMenuItem>Rename</DropdownMenuItem>
-        <DropdownMenuItem>Move</DropdownMenuItem>
-        <DropdownMenuItem variant="destructive">Delete</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onOpen?.(id, name, isFolder)}>Open</DropdownMenuItem>
+        {!isFolder && (
+            <DropdownMenuItem onClick={() => onDownload?.(id, name)}>Download</DropdownMenuItem>
+        )}
+        <DropdownMenuItem onClick={() => onRename?.(id, name, isFolder)}>Rename</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onMove?.(id, name, isFolder)}>Move</DropdownMenuItem>
+        <DropdownMenuItem variant="destructive" onClick={() => onDelete?.(id, isFolder)}>Delete</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )
 
-  if (layout === "list") {
-    return (
-      <Card className="py-0 transition-shadow hover:shadow-md">
-        <CardContent className="flex items-center gap-3 p-3">
-          <div
-            className={[
-              "inline-flex size-10 shrink-0 items-center justify-center rounded-xl",
-              iconClassName,
-            ].join(" ")}
-          >
-            <Icon className="size-5" />
-          </div>
-
-          <div className="min-w-0 flex-1 space-y-1">
-            <h3 className="line-clamp-1 text-sm font-semibold">{name}</h3>
-            <p className="text-xs text-muted-foreground">{meta}</p>
-            <p className="text-xs text-muted-foreground/80">
-              Updated {updatedAt}
-            </p>
-          </div>
-
-          {actions}
-        </CardContent>
-      </Card>
-    )
-  }
-
   return (
-    <Card className="py-0 transition-shadow hover:shadow-md">
+    <Card 
+      className={[
+        "relative py-0 transition-all hover:shadow-md group",
+        "cursor-pointer"
+      ].join(" ")}
+      onClick={() => onOpen?.(id, name, isFolder)}
+    >
       <CardContent className="space-y-4 p-4">
         <div className="flex items-start justify-between gap-3">
           <div
@@ -89,7 +95,9 @@ export function FileCard({
             <Icon className="size-5" />
           </div>
 
-          {actions}
+          <div onClick={(e) => e.stopPropagation()}>
+            {actions}
+          </div>
         </div>
 
         <div className="space-y-1.5">

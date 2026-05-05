@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Clock3, Home, Star, Trash2, Users } from "lucide-react"
@@ -36,8 +37,51 @@ const menuItems = [
   },
 ]
 
+function formatBytes(bytes: number, decimals = 1) {
+  if (bytes === 0) return "0 B"
+  const k = 1024
+  const dm = decimals < 0 ? 0 : decimals
+  const sizes = ["B", "KB", "MB", "GB", "TB"]
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i]
+}
 export function DashboardSidebar() {
   const pathname = usePathname()
+  const [storage, setStorage] = useState({ used: 0, limit: 32 * 1024 * 1024 * 1024 }) // Default 32GB
+
+  useEffect(() => {
+    async function fetchStorage() {
+      const token = localStorage.getItem("zipher_token")
+      if (!token) return
+
+      try {
+        const response = await fetch("http://localhost:8000/api/v1/me", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        })
+        const data = await response.json()
+        if (data.success) {
+          setStorage({
+            used: data.data.storage_used || 0,
+            limit: data.data.storage_limit || 32 * 1024 * 1024 * 1024
+          })
+          localStorage.setItem("zipher_user", JSON.stringify(data.data))
+        }
+      } catch (error) {
+        console.error("Failed to fetch storage:", error)
+      }
+    }
+
+    fetchStorage()
+
+    // Listen for content updates to refresh storage usage
+    window.addEventListener("contents-updated", fetchStorage)
+    return () => window.removeEventListener("contents-updated", fetchStorage)
+  }, [])
+
+  const progressValue = (storage.used / storage.limit) * 100
 
   return (
     <aside className="flex h-full flex-col bg-sidebar p-4 text-sidebar-foreground">
@@ -75,11 +119,11 @@ export function DashboardSidebar() {
           Storage
         </p>
         <Progress
-          value={57}
+          value={progressValue}
           className="mt-3 h-2 bg-sidebar-accent *:data-[slot=progress-indicator]:bg-linear-to-r *:data-[slot=progress-indicator]:from-blue-500 *:data-[slot=progress-indicator]:to-violet-500"
         />
         <p className="mt-3 text-sm text-sidebar-foreground/70">
-          8.5 GB of 15 GB used
+          {formatBytes(storage.used)} of {formatBytes(storage.limit)} used
         </p>
       </div>
     </aside>

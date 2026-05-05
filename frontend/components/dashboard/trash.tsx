@@ -1,12 +1,13 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import {
   FileImage,
   FileSpreadsheet,
   FileText,
   Folder,
   Presentation,
+  File as FileIcon,
 } from "lucide-react"
 
 import { FileCard } from "@/components/dashboard/file-card"
@@ -15,156 +16,186 @@ import {
   FilesListTable,
   type FileFilterOption,
 } from "@/components/dashboard/files-list-table"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
 
-const baseDeletedFiles = [
-  {
-    name: "LEMBAR PENGESAHAN ORISINALITAS KARYA WEB.pdf",
-    meta: "PDF • 1.8 MB",
-    updatedAt: "26 Mar",
-    owner: "saya",
-    size: "1.8 MB",
-    location: "Web Design - hara h...",
-    icon: FileText,
-    iconClassName: "bg-orange-100 text-orange-700",
-  },
-  {
-    name: "Lembar Pengesahani.pdf",
-    meta: "PDF • 84 KB",
-    updatedAt: "26 Mar",
-    owner: "saya",
-    size: "84 KB",
-    location: "Web Design - hara h...",
-    icon: FileText,
-    iconClassName: "bg-orange-100 text-orange-700",
-  },
-  {
-    name: "Old Marketing Plan",
-    meta: "Google Docs • 2.1 MB",
-    updatedAt: "25 Mar",
-    owner: "Design Team",
-    size: "2.1 MB",
-    location: "Marketing Assets",
-    icon: FileText,
-    iconClassName: "bg-blue-100 text-blue-700",
-  },
-  {
-    name: "Presentation Draft v1",
-    meta: "Presentation • 12 MB",
-    updatedAt: "24 Mar",
-    owner: "You",
-    size: "12 MB",
-    location: "Projects",
-    icon: Presentation,
-    iconClassName: "bg-rose-100 text-rose-700",
-  },
-  {
-    name: "Budget Spreadsheet 2025",
-    meta: "Google Sheets • 856 KB",
-    updatedAt: "23 Mar",
-    owner: "Finance",
-    size: "856 KB",
-    location: "Financial Reports",
-    icon: FileSpreadsheet,
-    iconClassName: "bg-emerald-100 text-emerald-700",
-  },
-  {
-    name: "Old Design Reference",
-    meta: "Image • 7.2 MB",
-    updatedAt: "22 Mar",
-    owner: "You",
-    size: "7.2 MB",
-    location: "Design Assets",
-    icon: FileImage,
-    iconClassName: "bg-violet-100 text-violet-700",
-  },
-]
+function getIcon(mimeType: string, isFolder: boolean) {
+  if (isFolder) return Folder
+  if (mimeType?.includes("image")) return FileImage
+  if (mimeType?.includes("spreadsheet") || mimeType?.includes("excel") || mimeType?.includes("csv")) return FileSpreadsheet
+  if (mimeType?.includes("pdf") || mimeType?.includes("text") || mimeType?.includes("word")) return FileText
+  if (mimeType?.includes("presentation") || mimeType?.includes("powerpoint")) return Presentation
+  return FileIcon
+}
 
-const extraFileIcons = [
-  Folder,
-  FileSpreadsheet,
-  FileText,
-  FileImage,
-  Presentation,
-]
-const extraFileStyles = [
-  "bg-blue-100 text-blue-700",
-  "bg-emerald-100 text-emerald-700",
-  "bg-orange-100 text-orange-700",
-  "bg-violet-100 text-violet-700",
-  "bg-rose-100 text-rose-700",
-]
-const extraFileMeta = [
-  "Folder • 12 items",
-  "Google Sheets • 860 KB",
-  "PDF • 2.4 MB",
-  "Image • 4.2 MB",
-  "Presentation • 6 slides",
-]
-const owners = ["You", "saya", "Design Team", "Finance", "Marketing"]
-const sizes = ["840 KB", "2.4 MB", "5.8 MB", "78 MB", "1.1 GB"]
+function getIconClassName(mimeType: string, isFolder: boolean) {
+  if (isFolder) return "bg-blue-100 text-blue-700"
+  if (mimeType?.includes("image")) return "bg-violet-100 text-violet-700"
+  if (mimeType?.includes("spreadsheet") || mimeType?.includes("excel") || mimeType?.includes("csv")) return "bg-emerald-100 text-emerald-700"
+  if (mimeType?.includes("pdf") || mimeType?.includes("text") || mimeType?.includes("word")) return "bg-orange-100 text-orange-700"
+  if (mimeType?.includes("presentation") || mimeType?.includes("powerpoint")) return "bg-rose-100 text-rose-700"
+  return "bg-slate-100 text-slate-700"
+}
 
-const generatedDeletedFiles = Array.from({ length: 14 }, (_, index) => {
-  const variant = index % 5
-  const fileNumber = index + 7
-  const daysAgo = (index % 10) + 1
+function formatBytes(bytes: number, decimals = 1) {
+  if (bytes === 0) return "0 B"
+  const k = 1024
+  const dm = decimals < 0 ? 0 : decimals
+  const sizes = ["B", "KB", "MB", "GB", "TB"]
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i]
+}
 
-  return {
-    name: `Deleted File ${fileNumber}`,
-    meta: extraFileMeta[variant],
-    updatedAt: `${daysAgo} days ago`,
-    owner: owners[index % owners.length],
-    size: sizes[index % sizes.length],
-    location: ["Projects", "Marketing Assets", "Design Files", "Documents"][index % 4],
-    icon: extraFileIcons[variant],
-    iconClassName: extraFileStyles[variant],
-  }
-})
-
-const deletedFiles = [...baseDeletedFiles, ...generatedDeletedFiles]
-
-function parseSizeToBytes(size: string) {
-  const match = size.trim().match(/^(\d+(?:\.\d+)?)\s*(KB|MB|GB)$/i)
-
-  if (!match) return 0
-
-  const value = Number(match[1])
-  const unit = match[2].toUpperCase()
-
-  if (unit === "KB") return value * 1024
-  if (unit === "MB") return value * 1024 * 1024
-  return value * 1024 * 1024 * 1024
+function formatDate(dateString: string) {
+  const date = new Date(dateString)
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  })
 }
 
 export function TrashSection() {
   const [isListView, setIsListView] = useState(true)
   const [fileFilter, setFileFilter] = useState<FileFilterOption>("none")
+  const [items, setItems] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string, isFolder: boolean } | null>(null)
+
+  useEffect(() => {
+    async function fetchTrash() {
+      const token = localStorage.getItem("zipher_token")
+      if (!token) return
+
+      try {
+        const [filesRes, foldersRes] = await Promise.all([
+          fetch("http://localhost:8000/api/v1/files/trash", {
+            headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+          }),
+          fetch("http://localhost:8000/api/v1/folders/trash", {
+            headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+          })
+        ])
+
+        const filesData = await filesRes.json()
+        const foldersData = await foldersRes.json()
+
+        const formattedFiles = (filesData.data || []).map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          meta: `${item.mime_type} • ${formatBytes(item.size)}`,
+          updatedAt: formatDate(item.deleted_at),
+          owner: "You",
+          size: formatBytes(item.size),
+          sizeBytes: item.size || 0,
+          location: item.folder ? item.folder.name : "My Files",
+          icon: getIcon(item.mime_type || "", false),
+          iconClassName: getIconClassName(item.mime_type || "", false),
+          isFolder: false,
+        }))
+
+        const formattedFolders = (foldersData.data || []).map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          meta: `Folder`,
+          updatedAt: formatDate(item.deleted_at),
+          owner: "You",
+          size: "-",
+          sizeBytes: 0,
+          location: item.parent ? item.parent.name : "My Files",
+          icon: Folder,
+          iconClassName: "bg-blue-100 text-blue-700",
+          isFolder: true,
+        }))
+
+        setItems([...formattedFolders, ...formattedFiles])
+      } catch (error) {
+        console.error("Failed to fetch trash:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchTrash()
+
+    // Listen for updates
+    window.addEventListener("contents-updated", fetchTrash)
+    return () => window.removeEventListener("contents-updated", fetchTrash)
+  }, [])
 
   const filteredFiles = useMemo(() => {
-    const next = [...deletedFiles]
+    const next = [...items]
 
     if (fileFilter === "smallest") {
-      next.sort((a, b) => parseSizeToBytes(a.size) - parseSizeToBytes(b.size))
+      next.sort((a, b) => a.sizeBytes - b.sizeBytes)
       return next
     }
 
     if (fileFilter === "largest") {
-      next.sort((a, b) => parseSizeToBytes(b.size) - parseSizeToBytes(a.size))
+      next.sort((a, b) => b.sizeBytes - a.sizeBytes)
       return next
     }
 
     if (fileFilter === "folder-first") {
       next.sort((a, b) => {
-        const aIsFolder = a.meta.startsWith("Folder")
-        const bIsFolder = b.meta.startsWith("Folder")
-
-        if (aIsFolder === bIsFolder) return a.name.localeCompare(b.name)
-        return aIsFolder ? -1 : 1
+        if (a.isFolder === b.isFolder) return a.name.localeCompare(b.name)
+        return a.isFolder ? -1 : 1
       })
       return next
     }
 
-    return deletedFiles
-  }, [fileFilter])
+    return items
+  }, [fileFilter, items])
+
+  const handleRestore = async (id: string, isFolder: boolean) => {
+    const token = localStorage.getItem("zipher_token")
+    const endpoint = isFolder ? `folders/${id}/restore` : `files/${id}/restore`
+
+    try {
+      const response = await fetch(`http://localhost:8000/api/v1/${endpoint}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      })
+      if (response.ok) {
+        window.dispatchEvent(new Event("contents-updated"))
+      }
+    } catch (error) {
+      console.error("Failed to restore:", error)
+    }
+  }
+
+  const handleForceDelete = async () => {
+    if (!deleteConfirm) return
+
+    const { id, isFolder } = deleteConfirm
+    const token = localStorage.getItem("zipher_token")
+    const endpoint = isFolder ? `folders/${id}/force` : `files/${id}/force`
+
+    try {
+      const response = await fetch(`http://localhost:8000/api/v1/${endpoint}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      })
+      if (response.ok) {
+        window.dispatchEvent(new Event("contents-updated"))
+        setDeleteConfirm(null)
+      }
+    } catch (error) {
+      console.error("Failed to force delete:", error)
+    }
+  }
 
   return (
     <section>
@@ -186,28 +217,57 @@ export function TrashSection() {
         </div>
       </div>
 
-      {isListView ? (
+      {isLoading ? (
+        <div className="flex h-40 items-center justify-center">
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      ) : isListView ? (
         <FilesListTable
           files={filteredFiles}
           activeFilter={fileFilter}
           onFilterChange={setFileFilter}
           showTrashActions={true}
+          onRestore={handleRestore}
+          onForceDelete={(id, isFolder) => setDeleteConfirm({ id, isFolder })}
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filteredFiles.map((file) => (
             <FileCard
-              key={file.name}
+              key={file.id}
+              id={file.id}
               name={file.name}
               meta={file.meta}
               updatedAt={file.updatedAt}
               icon={file.icon}
               iconClassName={file.iconClassName}
               layout="grid"
+              isFolder={file.isFolder}
+              onRestore={handleRestore}
+              onForceDelete={(id, isFolder) => setDeleteConfirm({ id, isFolder })}
             />
           ))}
         </div>
       )}
+
+      <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Hapus Selamanya?</DialogTitle>
+            <DialogDescription>
+              Tindakan ini tidak dapat dibatalkan. Item akan dihapus secara permanen dari storage Anda.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>
+              Batal
+            </Button>
+            <Button variant="destructive" onClick={handleForceDelete}>
+              Hapus Permanen
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   )
 }

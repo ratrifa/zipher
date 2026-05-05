@@ -7,6 +7,7 @@ import {
   Star,
   UserPlus,
   RotateCcw,
+  FolderOpen,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -24,6 +25,7 @@ import {
 } from "@/components/ui/tooltip"
 
 type FileListItem = {
+  id: string
   name: string
   owner: string
   updatedAt: string
@@ -32,6 +34,7 @@ type FileListItem = {
   iconClassName: string
   location?: string
   isStarred?: boolean
+  isFolder?: boolean
 }
 
 export type FileFilterOption = "none" | "smallest" | "largest" | "folder-first"
@@ -42,6 +45,15 @@ type FilesListTableProps = {
   onFilterChange: (value: FileFilterOption) => void
   showTrashActions?: boolean
   showStarredView?: boolean
+  onDelete?: (id: string, isFolder: boolean) => void
+  onRestore?: (id: string, isFolder: boolean) => void
+  onForceDelete?: (id: string, isFolder: boolean) => void
+  onToggleStar?: (id: string) => void
+  onFolderClick?: (id: string, name: string) => void
+  onRename?: (id: string, name: string, isFolder: boolean) => void
+  onMove?: (id: string, name: string, isFolder: boolean) => void
+  onOpen?: (id: string, name: string, isFolder: boolean) => void
+  onDownload?: (id: string, name: string) => void
 }
 
 export function FilesListTable({
@@ -50,6 +62,15 @@ export function FilesListTable({
   onFilterChange,
   showTrashActions = false,
   showStarredView = false,
+  onDelete,
+  onRestore,
+  onForceDelete,
+  onToggleStar,
+  onFolderClick,
+  onRename,
+  onMove,
+  onOpen,
+  onDownload,
 }: FilesListTableProps) {
   const tableColumns = showTrashActions ? (
     <colgroup>
@@ -147,10 +168,19 @@ export function FilesListTable({
           {tableColumns}
           <tbody className="divide-y divide-border">
             {files.map((file) => {
-              const Icon = file.icon
+              const FileIconComponent = file.icon
+              const isFolderRow = !!file.isFolder
 
               return (
-                <tr key={file.name} className="group hover:bg-muted/30">
+                <tr 
+                  key={file.id} 
+                  className={[
+                    "group transition-colors",
+                    "cursor-pointer",
+                    "hover:bg-muted/30"
+                  ].join(" ")}
+                  onClick={() => onOpen?.(file.id, file.name, isFolderRow)}
+                >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <span
@@ -159,7 +189,7 @@ export function FilesListTable({
                           file.iconClassName,
                         ].join(" ")}
                       >
-                        <Icon className="size-4" />
+                        <FileIconComponent className="size-4" />
                       </span>
                       <span className="truncate font-medium">{file.name}</span>
                     </div>
@@ -202,6 +232,10 @@ export function FilesListTable({
                                 size="icon"
                                 className="pointer-events-none size-8 rounded-full opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100"
                                 aria-label="Download file"
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    onDownload?.(file.id, file.name)
+                                }}
                               >
                                 <Download className="size-4" />
                               </Button>
@@ -215,6 +249,10 @@ export function FilesListTable({
                                 size="icon"
                                 className="pointer-events-none size-8 rounded-full opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100"
                                 aria-label="Edit file"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  onRename?.(file.id, file.name, isFolderRow)
+                                }}
                               >
                                 <Pencil className="size-4" />
                               </Button>
@@ -227,7 +265,28 @@ export function FilesListTable({
                                 variant="ghost"
                                 size="icon"
                                 className="pointer-events-none size-8 rounded-full opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100"
+                                aria-label="Move item"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  onMove?.(file.id, file.name, isFolderRow)
+                                }}
+                              >
+                                <FolderOpen className="size-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Pindah</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="pointer-events-none size-8 rounded-full opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100"
                                 aria-label={file.isStarred ? "Remove from Starred" : "Star file"}
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    onToggleStar?.(file.id)
+                                }}
                               >
                                 <Star
                                   className={`size-4 ${
@@ -250,6 +309,10 @@ export function FilesListTable({
                                 size="icon"
                                 className="pointer-events-none size-8 rounded-full opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100"
                                 aria-label="Download file"
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    onDownload?.(file.id, file.name)
+                                }}
                               >
                                 <Download className="size-4" />
                               </Button>
@@ -263,6 +326,10 @@ export function FilesListTable({
                                 size="icon"
                                 className="pointer-events-none size-8 rounded-full opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100"
                                 aria-label="Restore file"
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    onRestore?.(file.id, !!file.isFolder)
+                                }}
                               >
                                 <RotateCcw className="size-4" />
                               </Button>
@@ -286,17 +353,23 @@ export function FilesListTable({
                         <DropdownMenuContent align="end" className="w-40">
                           {showTrashActions ? (
                             <>
-                              <DropdownMenuItem>Pulihkan</DropdownMenuItem>
-                              <DropdownMenuItem variant="destructive">
+                              <DropdownMenuItem onClick={() => onRestore?.(file.id, !!file.isFolder)}>Pulihkan</DropdownMenuItem>
+                              <DropdownMenuItem variant="destructive" onClick={() => onForceDelete?.(file.id, !!file.isFolder)}>
                                 Hapus selamanya
                               </DropdownMenuItem>
                             </>
                           ) : (
                             <>
-                              <DropdownMenuItem>Open</DropdownMenuItem>
-                              <DropdownMenuItem>Rename</DropdownMenuItem>
-                              <DropdownMenuItem>Move</DropdownMenuItem>
-                              <DropdownMenuItem variant="destructive">
+                              <DropdownMenuItem onClick={() => onOpen?.(file.id, file.name, isFolderRow)}>Open</DropdownMenuItem>
+                              {!isFolderRow && (
+                                <DropdownMenuItem onClick={() => onDownload?.(file.id, file.name)}>Download</DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem onClick={() => onRename?.(file.id, file.name, isFolderRow)}>Rename</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => onMove?.(file.id, file.name, isFolderRow)}>Move</DropdownMenuItem>
+                              <DropdownMenuItem variant="destructive" onClick={(e) => {
+                                  e.stopPropagation()
+                                  onDelete?.(file.id, !!file.isFolder)
+                              }}>
                                 Delete
                               </DropdownMenuItem>
                             </>
