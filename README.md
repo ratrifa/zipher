@@ -226,6 +226,7 @@ DELETE /api/v1/files/{id}/tags/{tagId}
 ## Profile Management
 
 ### Update Profile
+
 PATCH /api/v1/profile
 (Bearer Token)
 `json
@@ -236,6 +237,7 @@ PATCH /api/v1/profile
 `
 
 ### Change Password
+
 POST /api/v1/profile/password
 (Bearer Token)
 `json
@@ -247,11 +249,9 @@ POST /api/v1/profile/password
 `
 
 ### Update Avatar
+
 POST /api/v1/profile/avatar
 (Bearer Token)
 Multipart Form Data:
+
 - avatar: (binary image)
-
-## Documentation & Testing
-
-For a complete list of endpoints and their current status, see [api-testing.md](./api-testing.md).
