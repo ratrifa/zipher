@@ -12,7 +12,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
-#[Fillable(['username', 'email', 'password', 'public_key', 'storage_limit'])]
+#[Fillable(['username', 'email', 'password', 'public_key', 'storage_limit', 'role', 'is_banned'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -29,6 +29,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_banned' => 'boolean',
         ];
     }
 
@@ -50,5 +51,15 @@ class User extends Authenticatable
     public function sharedWithMe()
     {
         return $this->hasMany(SharedFile::class, 'receiver_id');
+    }
+
+    public function reportsFiled()
+    {
+        return $this->hasMany(Report::class, 'reporter_id');
+    }
+
+    public function activityLogs()
+    {
+        return $this->hasMany(ActivityLog::class);
     }
 }
