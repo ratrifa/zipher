@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\File;
 use App\Models\Folder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -77,11 +78,76 @@ class FolderController extends Controller
     public function destroy(string $id): JsonResponse
     {
         $folder = Folder::where('id', $id)->where('user_id', auth()->id())->firstOrFail();
+        $this->softDeleteDescendants($folder);
         $folder->delete();
 
         return response()->json([
             'success' => true,
-            'message' => 'Folder deleted',
+            'message' => 'Folder moved to trash',
         ]);
+    }
+
+    public function trash(): JsonResponse
+    {
+        $folders = Folder::onlyTrashed()->where('user_id', auth()->id())->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $folders,
+        ]);
+    }
+
+    public function restore(string $id): JsonResponse
+    {
+        $folder = Folder::onlyTrashed()->where('id', $id)->where('user_id', auth()->id())->firstOrFail();
+        $this->restoreDescendants($folder);
+        $folder->restore();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Folder restored',
+        ]);
+    }
+
+    public function forceDelete(string $id): JsonResponse
+    {
+        $folder = Folder::onlyTrashed()->where('id', $id)->where('user_id', auth()->id())->firstOrFail();
+        $this->forceDeleteDescendants($folder);
+        $folder->forceDelete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Folder permanently deleted',
+        ]);
+    }
+
+    private function softDeleteDescendants(Folder $folder): void
+    {
+        File::where('folder_id', $folder->id)->delete();
+        $children = Folder::where('parent_id', $folder->id)->get();
+        foreach ($children as $child) {
+            $this->softDeleteDescendants($child);
+            $child->delete();
+        }
+    }
+
+    private function restoreDescendants(Folder $folder): void
+    {
+        File::onlyTrashed()->where('folder_id', $folder->id)->restore();
+        $children = Folder::onlyTrashed()->where('parent_id', $folder->id)->get();
+        foreach ($children as $child) {
+            $this->restoreDescendants($child);
+            $child->restore();
+        }
+    }
+
+    private function forceDeleteDescendants(Folder $folder): void
+    {
+        File::onlyTrashed()->where('folder_id', $folder->id)->forceDelete();
+        $children = Folder::onlyTrashed()->where('parent_id', $folder->id)->get();
+        foreach ($children as $child) {
+            $this->forceDeleteDescendants($child);
+            $child->forceDelete();
+        }
     }
 }
