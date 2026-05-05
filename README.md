@@ -142,8 +142,116 @@ GET /api/v1/shared/with-me
 GET /api/v1/shared/by-me
 (Bearer Token)
 
-## Remove Share
+## Mixed Contents
 
-DELETE /api/v1/share/{id}
+GET /api/v1/contents?folder_id=optional-uuid
 (Bearer Token)
-`{id}` ID of share.
+Returns a unified list of files and folders.
+
+## Smart Search
+
+GET /api/v1/search?q=searchterm
+(Bearer Token)
+Search across both files and folders.
+
+## Starred Files
+
+GET /api/v1/files/starred
+(Bearer Token)
+
+## Toggle Star
+
+POST /api/v1/files/{id}/star
+(Bearer Token)
+
+## Trash Bin
+
+### Files
+
+GET /api/v1/files/trash
+(Bearer Token)
+
+### Folders
+
+GET /api/v1/folders/trash
+(Bearer Token)
+
+## Restore from Trash
+
+### File
+
+POST /api/v1/files/{id}/restore
+(Bearer Token)
+
+### Folder
+
+POST /api/v1/folders/{id}/restore
+(Bearer Token)
+
+## Force Delete (Permanent)
+
+### File
+
+DELETE /api/v1/files/{id}/force
+(Bearer Token)
+
+### Folder
+
+DELETE /api/v1/folders/{id}/force
+(Bearer Token)
+
+## File Tags
+
+### Get Tags
+
+GET /api/v1/files/{id}/tags
+(Bearer Token)
+
+### Replace Tags
+
+PUT /api/v1/files/{id}/tags
+(Bearer Token)
+
+```json
+{
+  "tags": ["tag1", "tag2"]
+}
+```
+
+### Delete Tag
+
+DELETE /api/v1/files/{id}/tags/{tagId}
+(Bearer Token)
+
+## Profile Management
+
+### Update Profile
+PATCH /api/v1/profile
+(Bearer Token)
+`json
+{
+  "username": "newusername",
+  "email": "newemail@example.com"
+}
+`
+
+### Change Password
+POST /api/v1/profile/password
+(Bearer Token)
+`json
+{
+  "current_password": "oldpassword",
+  "password": "newpassword123",
+  "password_confirmation": "newpassword123"
+}
+`
+
+### Update Avatar
+POST /api/v1/profile/avatar
+(Bearer Token)
+Multipart Form Data:
+- avatar: (binary image)
+
+## Documentation & Testing
+
+For a complete list of endpoints and their current status, see [api-testing.md](./api-testing.md).

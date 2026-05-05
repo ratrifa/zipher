@@ -4,6 +4,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ContentsController;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\FolderController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\ShareController;
 use Illuminate\Support\Facades\Route;
@@ -23,6 +24,7 @@ Route::prefix('v1')->group(function () {
 
         // Unified contents (files + folders mixed)
         Route::get('contents', [ContentsController::class, 'index']);
+        Route::post('contents/move', [ContentsController::class, 'move']);
 
         // Smart search
         Route::get('search', [SearchController::class, 'search']);
@@ -50,6 +52,11 @@ Route::prefix('v1')->group(function () {
         Route::delete('folders/{id}', [FolderController::class, 'destroy']);
         Route::post('folders/{id}/restore', [FolderController::class, 'restore']);
         Route::delete('folders/{id}/force', [FolderController::class, 'forceDelete']);
+
+        // Profile
+        Route::patch('profile', [ProfileController::class, 'update']);
+        Route::post('profile/password', [ProfileController::class, 'updatePassword']);
+        Route::post('profile/avatar', [ProfileController::class, 'updateAvatar']);
 
         // Sharing
         Route::post('share', [ShareController::class, 'share']);
