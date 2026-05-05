@@ -6,6 +6,7 @@ use App\Models\File;
 use App\Models\Folder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 
 class ContentsController extends Controller
 {
@@ -42,5 +43,92 @@ class ContentsController extends Controller
             'success' => true,
             'data'    => $items,
         ]);
+    }
+
+    public function move(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'file_ids' => 'nullable|array',
+            'file_ids.*' => 'uuid|exists:files,id',
+            'folder_ids' => 'nullable|array',
+            'folder_ids.*' => 'uuid|exists:folders,id',
+            'target_folder_id' => 'nullable|uuid|exists:folders,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+            ], 422);
+        }
+
+        $userId = auth()->id();
+        $targetFolderId = $request->target_folder_id;
+
+        // Verify target folder ownership if not root
+        if ($targetFolderId) {
+            $targetFolder = Folder::where('id', $targetFolderId)
+                ->where('user_id', $userId)
+                ->first();
+            
+            if (!$targetFolder) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Target folder not found or access denied.',
+                ], 404);
+            }
+        }
+
+        // Move files
+        if ($request->has('file_ids')) {
+            File::whereIn('id', $request->file_ids)
+                ->where('user_id', $userId)
+                ->update(['folder_id' => $targetFolderId]);
+        }
+
+        // Move folders
+        if ($request->has('folder_ids')) {
+            // Prevent moving a folder into itself or its descendants
+            $folderIds = $request->folder_ids;
+            
+            if ($targetFolderId) {
+                foreach ($folderIds as $id) {
+                    if ($id === $targetFolderId) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Cannot move a folder into itself.',
+                        ], 422);
+                    }
+                    
+                    if ($this->isDescendant($id, $targetFolderId)) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Cannot move a folder into its own descendant.',
+                        ], 422);
+                    }
+                }
+            }
+
+            Folder::whereIn('id', $folderIds)
+                ->where('user_id', $userId)
+                ->update(['parent_id' => $targetFolderId]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Items moved successfully',
+        ]);
+    }
+
+    private function isDescendant(string $folderId, string $targetFolderId): bool
+    {
+        $target = Folder::find($targetFolderId);
+        while ($target && $target->parent_id) {
+            if ($target->parent_id === $folderId) {
+                return true;
+            }
+            $target = Folder::find($target->parent_id);
+        }
+        return false;
     }
 }

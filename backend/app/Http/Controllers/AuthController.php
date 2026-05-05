@@ -83,9 +83,12 @@ class AuthController extends Controller
 
     public function me(Request $request): JsonResponse
     {
+        $user = $request->user();
+        $user->storage_used = $user->storageUsed();
+
         return response()->json([
             'success' => true,
-            'data' => $request->user(),
+            'data' => $user,
         ]);
     }
 

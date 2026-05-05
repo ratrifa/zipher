@@ -52,6 +52,23 @@ class FileController extends Controller
             ], 422);
         }
 
+        $userId = auth()->id();
+        $folderId = $request->folder_id;
+        $name = $request->name;
+
+        $originalName = pathinfo($name, PATHINFO_FILENAME);
+        $extension = pathinfo($name, PATHINFO_EXTENSION);
+        $extension = $extension ? "." . $extension : "";
+        $counter = 1;
+
+        while (File::where('user_id', $userId)
+            ->where('folder_id', $folderId)
+            ->where('name', $name)
+            ->exists()) {
+            $name = $originalName . " ($counter)" . $extension;
+            $counter++;
+        }
+
         $user = auth()->user();
         $incomingSize = $request->file('file')->getSize();
 
@@ -66,9 +83,9 @@ class FileController extends Controller
         $path = $request->file('file')->store('uploads', 'public');
 
         $file = File::create([
-            'user_id' => auth()->id(),
-            'folder_id' => $request->folder_id,
-            'name' => $request->name,
+            'user_id' => $userId,
+            'folder_id' => $folderId,
+            'name' => $name,
             'size' => $request->file('file')->getSize(),
             'mime_type' => $request->mime_type,
             'storage_path' => $path,
@@ -138,31 +155,54 @@ class FileController extends Controller
             'Content-Type' => 'application/json',
         ]);
     }
+public function update(Request $request, string $id): JsonResponse
+{
+    $file = File::where('id', $id)->where('user_id', auth()->id())->firstOrFail();
 
-    public function update(Request $request, string $id): JsonResponse
-    {
-        $file = File::where('id', $id)->where('user_id', auth()->id())->firstOrFail();
+    $validator = Validator::make($request->all(), [
+        'name' => 'sometimes|string|max:255',
+        'folder_id' => 'nullable|uuid|exists:folders,id',
+        'is_starred' => 'sometimes|boolean',
+    ]);
 
-        $validator = Validator::make($request->all(), [
-            'name' => 'sometimes|string|max:255',
-            'folder_id' => 'sometimes|nullable|uuid|exists:folders,id',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => $validator->errors()->first(),
-            ], 422);
-        }
-
-        $file->update($request->only('name', 'folder_id'));
-
+    if ($validator->fails()) {
         return response()->json([
-            'success' => true,
-            'data' => $file,
-            'message' => 'File updated',
-        ]);
+            'success' => false,
+            'message' => $validator->errors()->first(),
+        ], 422);
     }
+
+    $data = $request->only('folder_id', 'is_starred');
+
+    if ($request->has('name')) {
+        $userId = auth()->id();
+        $folderId = $request->has('folder_id') ? $request->folder_id : $file->folder_id;
+        $name = $request->name;
+
+        $originalName = pathinfo($name, PATHINFO_FILENAME);
+        $extension = pathinfo($name, PATHINFO_EXTENSION);
+        $extension = $extension ? "." . $extension : "";
+        $counter = 1;
+
+        while (File::where('user_id', $userId)
+            ->where('folder_id', $folderId)
+            ->where('name', $name)
+            ->where('id', '!=', $file->id)
+            ->exists()) {
+            $name = $originalName . " ($counter)" . $extension;
+            $counter++;
+        }
+        $data['name'] = $name;
+    }
+
+    $file->update($data);
+
+    return response()->json([
+        'success' => true,
+        'data' => $file,
+        'message' => 'File updated successfully',
+    ]);
+}
 
     public function destroy(string $id): JsonResponse
     {
@@ -200,7 +240,11 @@ class FileController extends Controller
 
     public function trash(): JsonResponse
     {
-        $files = File::onlyTrashed()->where('user_id', auth()->id())->get();
+        $files = File::onlyTrashed()
+            ->where('user_id', auth()->id())
+            ->with('folder')
+            ->orderBy('deleted_at', 'desc')
+            ->get();
 
         return response()->json([
             'success' => true,

@@ -37,10 +37,25 @@ class FolderController extends Controller
             ], 422);
         }
 
+        $name = $request->name;
+        $parentId = $request->parent_id;
+        $userId = auth()->id();
+
+        $originalName = $name;
+        $counter = 1;
+
+        while (Folder::where('user_id', $userId)
+            ->where('parent_id', $parentId)
+            ->where('name', $name)
+            ->exists()) {
+            $name = $originalName . " ($counter)";
+            $counter++;
+        }
+
         $folder = Folder::create([
-            'name' => $request->name,
-            'user_id' => auth()->id(),
-            'parent_id' => $request->parent_id,
+            'name' => $name,
+            'user_id' => $userId,
+            'parent_id' => $parentId,
         ]);
 
         return response()->json([
@@ -55,8 +70,8 @@ class FolderController extends Controller
         $folder = Folder::where('id', $id)->where('user_id', auth()->id())->firstOrFail();
 
         $validator = Validator::make($request->all(), [
-            'name' => 'sometimes|string|max:255',
-            'parent_id' => 'sometimes|nullable|uuid|exists:folders,id',
+            'name' => 'required|string|max:255',
+            'parent_id' => 'nullable|uuid|exists:folders,id',
         ]);
 
         if ($validator->fails()) {
@@ -66,12 +81,31 @@ class FolderController extends Controller
             ], 422);
         }
 
-        $folder->update($request->only('name', 'parent_id'));
+        $name = $request->name;
+        $parentId = $request->has('parent_id') ? $request->parent_id : $folder->parent_id;
+        $userId = auth()->id();
+
+        $originalName = $name;
+        $counter = 1;
+
+        while (Folder::where('user_id', $userId)
+            ->where('parent_id', $parentId)
+            ->where('name', $name)
+            ->where('id', '!=', $folder->id)
+            ->exists()) {
+            $name = $originalName . " ($counter)";
+            $counter++;
+        }
+
+        $folder->update([
+            'name' => $name,
+            'parent_id' => $parentId,
+        ]);
 
         return response()->json([
             'success' => true,
             'data' => $folder,
-            'message' => 'Folder updated',
+            'message' => 'Folder updated successfully',
         ]);
     }
 
@@ -89,7 +123,11 @@ class FolderController extends Controller
 
     public function trash(): JsonResponse
     {
-        $folders = Folder::onlyTrashed()->where('user_id', auth()->id())->get();
+        $folders = Folder::onlyTrashed()
+            ->where('user_id', auth()->id())
+            ->with('parent')
+            ->orderBy('deleted_at', 'desc')
+            ->get();
 
         return response()->json([
             'success' => true,
