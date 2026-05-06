@@ -188,6 +188,20 @@ export function logoutUser(token: string) {
   return request<{ message: string }>("logout", { method: "POST" }, token)
 }
 
+export type ResetPasswordPayload = {
+  email: string
+  token: string
+  password: string
+  password_confirmation: string
+}
+
+export function resetPassword(payload: ResetPasswordPayload) {
+  return request<{ message: string }>("reset-password", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
 export function searchUsers(token: string, query?: string) {
   const suffix = toQueryString({ q: query })
   return request<AuthUser[]>(`users/search${suffix}`, { method: "GET" }, token)
