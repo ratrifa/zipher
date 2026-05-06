@@ -14,7 +14,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
 export default function ProfilePage() {
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(true)
   const [loginAlertEnabled, setLoginAlertEnabled] = useState(false)
   const [activeModal, setActiveModal] = useState<"foto" | "nama" | "email" | "password" | null>(null)
 
@@ -67,7 +66,7 @@ export default function ProfilePage() {
 
         <ProfileSection
           title="Security"
-          description="Kelola password, two factor authentication, dan alert login akun."
+          description="Kelola password, dan alert login akun."
         >
           <div id="security" className="space-y-0">
             <ProfileSettingRow
@@ -75,22 +74,6 @@ export default function ProfilePage() {
               actionLabel="Ganti password"
               onAction={() => setActiveModal("password")}
             />
-
-            <ProfileSettingRow
-              title="Two factor authentication"
-              description="Tambahkan lapisan keamanan ekstra saat login."
-              value={
-                <span className="text-sm text-muted-foreground">
-                  {twoFactorEnabled ? "Aktif" : "Nonaktif"}
-                </span>
-              }
-            >
-              <Switch
-                checked={twoFactorEnabled}
-                onCheckedChange={setTwoFactorEnabled}
-                aria-label="Toggle two factor authentication"
-              />
-            </ProfileSettingRow>
 
             <ProfileSettingRow
               title="Login alert"
