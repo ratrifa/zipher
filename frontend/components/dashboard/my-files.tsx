@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo, useState, useEffect } from "react"
+import { useMemo, useState, useEffect, Suspense, useRef } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import {
   FileImage,
   FileSpreadsheet,
@@ -12,15 +13,18 @@ import {
   ChevronRight,
   Home,
   X,
+  FileCode2,
 } from "lucide-react"
 
 import { FileCard } from "@/components/dashboard/file-card"
+import { FilePreviewContent, isTextDecodable } from "@/components/dashboard/file-preview-content"
 import { FileLayoutSwitch } from "@/components/dashboard/file-layout-switch"
 import {
   FilesListTable,
   type FileFilterOption,
 } from "@/components/dashboard/files-list-table"
 import { NewDropdownMenu } from "@/components/dashboard/new-dropdown-menu"
+import { ShareDialog } from "@/components/dashboard/share-dialog"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -32,22 +36,83 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  importPrivateKey,
+  importAESKey,
+  decryptAESKey,
+  decryptData,
+  loadPrivateKey,
+} from "@/lib/crypto"
+import axios from "axios"
+import { Loader2 } from "lucide-react"
 
-function getIcon(mimeType: string, isFolder: boolean) {
+function getIcon(mimeType: string, isFolder: boolean, fileName: string = "") {
   if (isFolder) return Folder
+
+  const lowerName = fileName.toLowerCase()
+  const isCode =
+    lowerName.endsWith(".md") ||
+    lowerName.endsWith(".ts") ||
+    lowerName.endsWith(".tsx") ||
+    lowerName.endsWith(".js") ||
+    lowerName.endsWith(".py") ||
+    lowerName.endsWith(".json") ||
+    mimeType?.includes("javascript") ||
+    mimeType?.includes("typescript") ||
+    mimeType?.includes("markdown")
+
+  if (isCode) return FileCode2
   if (mimeType.includes("image")) return FileImage
-  if (mimeType.includes("spreadsheet") || mimeType.includes("excel") || mimeType.includes("csv")) return FileSpreadsheet
-  if (mimeType.includes("pdf") || mimeType.includes("text") || mimeType.includes("word")) return FileText
-  if (mimeType.includes("presentation") || mimeType.includes("powerpoint")) return Presentation
+  if (
+    mimeType.includes("spreadsheet") ||
+    mimeType.includes("excel") ||
+    mimeType.includes("csv")
+  )
+    return FileSpreadsheet
+  if (mimeType.includes("presentation") || mimeType.includes("powerpoint"))
+    return Presentation
+  if (
+    mimeType.includes("pdf") ||
+    mimeType.includes("word") ||
+    mimeType.includes("officedocument.wordprocessingml") ||
+    mimeType.includes("text")
+  )
+    return FileText
   return FileIcon
 }
 
-function getIconClassName(mimeType: string, isFolder: boolean) {
+function getIconClassName(mimeType: string, isFolder: boolean, fileName: string = "") {
   if (isFolder) return "bg-blue-100 text-blue-700"
+
+  const lowerName = fileName.toLowerCase()
+  const isCode =
+    lowerName.endsWith(".md") ||
+    lowerName.endsWith(".ts") ||
+    lowerName.endsWith(".tsx") ||
+    lowerName.endsWith(".js") ||
+    lowerName.endsWith(".py") ||
+    lowerName.endsWith(".json") ||
+    mimeType?.includes("javascript") ||
+    mimeType?.includes("typescript") ||
+    mimeType?.includes("markdown")
+
+  if (isCode) return "bg-slate-100 text-slate-700"
   if (mimeType.includes("image")) return "bg-violet-100 text-violet-700"
-  if (mimeType.includes("spreadsheet") || mimeType.includes("excel") || mimeType.includes("csv")) return "bg-emerald-100 text-emerald-700"
-  if (mimeType.includes("pdf") || mimeType.includes("text") || mimeType.includes("word")) return "bg-orange-100 text-orange-700"
-  if (mimeType.includes("presentation") || mimeType.includes("powerpoint")) return "bg-rose-100 text-rose-700"
+  if (
+    mimeType.includes("spreadsheet") ||
+    mimeType.includes("excel") ||
+    mimeType.includes("csv")
+  )
+    return "bg-emerald-100 text-emerald-700"
+  if (mimeType.includes("presentation") || mimeType.includes("powerpoint"))
+    return "bg-rose-100 text-rose-700"
+  if (mimeType.includes("pdf")) return "bg-orange-100 text-orange-700"
+  if (
+    mimeType.includes("word") ||
+    mimeType.includes("officedocument.wordprocessingml")
+  )
+    return "bg-sky-100 text-sky-700"
+  if (mimeType.includes("text")) return "bg-slate-100 text-slate-700"
   return "bg-slate-100 text-slate-700"
 }
 
@@ -70,24 +135,66 @@ function formatDate(dateString: string) {
 }
 
 export function MyFilesSection() {
-  const [isListView, setIsListView] = useState(false)
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-40 items-center justify-center">
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      }
+    >
+      <MyFilesContent />
+    </Suspense>
+  )
+}
+
+function MyFilesContent() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const currentFolderId = searchParams.get("folder")
+  const searchQuery = searchParams.get("q")
+
+  const [isListView, setIsListView] = useState(true)
   const [fileFilter, setFileFilter] = useState<FileFilterOption>("none")
   const [items, setItems] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [userName, setUserName] = useState("User")
-  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
-  const [folderStack, setFolderStack] = useState<{id: string, name: string}[]>([])
-  
-  const [renameItem, setRenameConfirm] = useState<{ id: string, name: string, isFolder: boolean } | null>(null)
+  const [folderStack, setFolderStack] = useState<
+    { id: string; name: string }[]
+  >([])
+
+  const [renameItem, setRenameConfirm] = useState<{
+    id: string
+    name: string
+    isFolder: boolean
+  } | null>(null)
   const [newName, setNewName] = useState("")
 
-  const [moveItem, setMoveItem] = useState<{ id: string, name: string, isFolder: boolean } | null>(null)
+  const [moveItem, setMoveItem] = useState<{
+    id: string
+    name: string
+    isFolder: boolean
+  } | null>(null)
   const [moveTargetFolders, setMoveTargetFolders] = useState<any[]>([])
-  const [moveCurrentFolderId, setMoveCurrentFolderId] = useState<string | null>(null)
-  const [moveFolderStack, setMoveFolderStack] = useState<{id: string, name: string}[]>([])
+  const [moveCurrentFolderId, setMoveCurrentFolderId] = useState<string | null>(
+    null
+  )
+  const [moveFolderStack, setMoveFolderStack] = useState<
+    { id: string; name: string }[]
+  >([])
   const [isMoving, setIsMoving] = useState(false)
+  const [isOpening, setIsOpening] = useState(false)
 
-  const [previewItem, setPreviewItem] = useState<{name: string, url: string, mimeType: string} | null>(null)
+  const [previewItem, setPreviewItem] = useState<{
+    name: string
+    url: string
+    mimeType: string
+    content?: string
+    tags?: any[]
+  } | null>(null)
+  const fetchingRef = useRef<Set<string>>(new Set())
+
+  const [shareItem, setShareItem] = useState<{ id: string; name: string } | null>(null)
 
   const fetchContents = async () => {
     const token = localStorage.getItem("zipher_token")
@@ -95,9 +202,16 @@ export function MyFilesSection() {
 
     setIsLoading(true)
     try {
-      const url = currentFolderId 
-        ? `http://localhost:8000/api/v1/contents?folder_id=${currentFolderId}`
-        : "http://localhost:8000/api/v1/contents"
+      const q = searchParams.get("q")
+      let url = ""
+
+      if (q) {
+        url = `http://localhost:8000/api/v1/search?q=${encodeURIComponent(q)}`
+      } else {
+        url = currentFolderId
+          ? `http://localhost:8000/api/v1/contents?folder_id=${currentFolderId}`
+          : "http://localhost:8000/api/v1/contents"
+      }
 
       const response = await fetch(url, {
         headers: {
@@ -107,21 +221,52 @@ export function MyFilesSection() {
       })
       const data = await response.json()
       if (data.success) {
-        const formattedItems = data.data.map((item: any) => ({
-          id: item.id,
-          name: item.name,
-          meta: item.type === "folder" ? `Folder • ${item.items_count || 0} items` : `${item.mime_type} • ${formatBytes(item.size)}`,
-          updatedAt: formatDate(item.updated_at),
-          owner: "You",
-          size: item.type === "folder" ? "-" : formatBytes(item.size),
-          sizeBytes: item.size || 0,
-          icon: getIcon(item.mime_type || "", item.type === "folder"),
-          iconClassName: getIconClassName(item.mime_type || "", item.type === "folder"),
-          isFolder: item.type === "folder",
-          isStarred: item.is_starred,
-          parentId: item.type === "folder" ? item.parent_id : item.folder_id,
-        }))
-        setItems(formattedItems)      }
+        // Update breadcrumbs from API if available
+        if (data.breadcrumbs) {
+          setFolderStack(data.breadcrumbs)
+        } else if (!currentFolderId) {
+          setFolderStack([])
+        }
+
+        const formattedItems = data.data.map((item: any) => {
+          let metaText = ""
+          if (item.type === "folder") {
+            metaText = `Folder • ${item.items_count || 0} items`
+          } else {
+            const firstTag =
+              item.tags && item.tags.length > 0
+                ? item.tags[0].name || item.tags[0]
+                : ""
+            metaText = firstTag
+              ? `${firstTag} • ${formatBytes(item.size)}`
+              : formatBytes(item.size)
+          }
+
+          return {
+            id: item.id,
+            name: item.name,
+            meta: metaText,
+            updatedAt: formatDate(item.updated_at),
+            owner: "You",
+            size: item.type === "folder" ? formatBytes(item.total_size || 0) : formatBytes(item.size),
+            sizeBytes: item.type === "folder" ? item.total_size || 0 : item.size || 0,
+            icon: getIcon(
+              item.mime_type || "",
+              item.type === "folder",
+              item.name
+            ),
+            iconClassName: getIconClassName(
+              item.mime_type || "",
+              item.type === "folder",
+              item.name
+            ),
+            isFolder: item.type === "folder",
+            isStarred: item.is_starred,
+            parentId: item.type === "folder" ? item.parent_id : item.folder_id,
+          }
+        })
+        setItems(formattedItems)
+      }
     } catch (error) {
       console.error("Failed to fetch contents:", error)
     } finally {
@@ -141,31 +286,33 @@ export function MyFilesSection() {
     const handleUpdate = () => fetchContents()
     window.addEventListener("contents-updated", handleUpdate)
     return () => window.removeEventListener("contents-updated", handleUpdate)
-  }, [currentFolderId])
+  }, [currentFolderId, searchParams])
 
   useEffect(() => {
     if (!moveItem) return
 
     const fetchMoveTargetFolders = async () => {
-        const token = localStorage.getItem("zipher_token")
-        try {
-            const url = moveCurrentFolderId 
-                ? `http://localhost:8000/api/v1/folders?parent_id=${moveCurrentFolderId}`
-                : "http://localhost:8000/api/v1/folders"
-            
-            const response = await fetch(url, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    Accept: "application/json",
-                },
-            })
-            const data = await response.json()
-            if (data.success) {
-                setMoveTargetFolders(data.data.filter((f: any) => f.id !== moveItem.id))
-            }
-        } catch (error) {
-            console.error("Failed to fetch target folders:", error)
+      const token = localStorage.getItem("zipher_token")
+      try {
+        const url = moveCurrentFolderId
+          ? `http://localhost:8000/api/v1/folders?parent_id=${moveCurrentFolderId}`
+          : "http://localhost:8000/api/v1/folders"
+
+        const response = await fetch(url, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        })
+        const data = await response.json()
+        if (data.success) {
+          setMoveTargetFolders(
+            data.data.filter((f: any) => f.id !== moveItem.id)
+          )
         }
+      } catch (error) {
+        console.error("Failed to fetch target folders:", error)
+      }
     }
 
     fetchMoveTargetFolders()
@@ -177,33 +324,36 @@ export function MyFilesSection() {
 
     const token = localStorage.getItem("zipher_token")
     try {
-        const response = await fetch("http://localhost:8000/api/v1/contents/move", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-                Accept: "application/json",
-            },
-            body: JSON.stringify({
-                file_ids: moveItem.isFolder ? [] : [moveItem.id],
-                folder_ids: moveItem.isFolder ? [moveItem.id] : [],
-                target_folder_id: moveCurrentFolderId,
-            }),
-        })
-
-        if (response.ok) {
-            window.dispatchEvent(new Event("contents-updated"))
-            setMoveItem(null)
-            setMoveCurrentFolderId(null)
-            setMoveFolderStack([])
-        } else {
-            const err = await response.json()
-            alert(err.message || "Gagal memindahkan item")
+      const response = await fetch(
+        "http://localhost:8000/api/v1/contents/move",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            file_ids: moveItem.isFolder ? [] : [moveItem.id],
+            folder_ids: moveItem.isFolder ? [moveItem.id] : [],
+            target_folder_id: moveCurrentFolderId,
+          }),
         }
+      )
+
+      if (response.ok) {
+        window.dispatchEvent(new Event("contents-updated"))
+        setMoveItem(null)
+        setMoveCurrentFolderId(null)
+        setMoveFolderStack([])
+      } else {
+        const err = await response.json()
+        alert(err.message || "Gagal memindahkan item")
+      }
     } catch (error) {
-        console.error("Failed to move item:", error)
+      console.error("Failed to move item:", error)
     } finally {
-        setIsMoving(false)
+      setIsMoving(false)
     }
   }
 
@@ -234,7 +384,7 @@ export function MyFilesSection() {
   const handleDelete = async (id: string, isFolder: boolean) => {
     const token = localStorage.getItem("zipher_token")
     const endpoint = isFolder ? `folders/${id}` : `files/${id}`
-    
+
     try {
       const response = await fetch(`http://localhost:8000/api/v1/${endpoint}`, {
         method: "DELETE",
@@ -253,8 +403,13 @@ export function MyFilesSection() {
 
   const handleToggleStar = async (id: string) => {
     const token = localStorage.getItem("zipher_token")
+    const item = items.find((i) => i.id === id)
+    if (!item) return
+
+    const endpoint = item.isFolder ? `folders/${id}/star` : `files/${id}/star`
+
     try {
-      const response = await fetch(`http://localhost:8000/api/v1/files/${id}/star`, {
+      const response = await fetch(`http://localhost:8000/api/v1/${endpoint}`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -270,23 +425,31 @@ export function MyFilesSection() {
   }
 
   const handleFolderClick = (id: string, name: string) => {
-    setFolderStack([...folderStack, { id, name }])
-    setCurrentFolderId(id)
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("folder", id)
+    params.delete("q")
+    router.push(`/dashboard?${params.toString()}`)
   }
 
   const handleBreadcrumbClick = (index: number) => {
+    const params = new URLSearchParams(searchParams.toString())
     if (index === -1) {
-      setFolderStack([])
-      setCurrentFolderId(null)
+      params.delete("folder")
     } else {
-      const newStack = folderStack.slice(0, index + 1)
-      setFolderStack(newStack)
-      setCurrentFolderId(newStack[newStack.length - 1].id)
+      params.set("folder", folderStack[index].id)
     }
+    params.delete("q")
+    router.push(`/dashboard?${params.toString()}`)
   }
 
-  const handleRenameClick = (id: string, currentName: string, isFolder: boolean) => {
-    const nameOnly = isFolder ? currentName : currentName.replace(/\.[^/.]+$/, "")
+  const handleRenameClick = (
+    id: string,
+    currentName: string,
+    isFolder: boolean
+  ) => {
+    const nameOnly = isFolder
+      ? currentName
+      : currentName.replace(/\.[^/.]+$/, "")
     setRenameConfirm({ id, name: currentName, isFolder })
     setNewName(nameOnly)
   }
@@ -296,11 +459,13 @@ export function MyFilesSection() {
     if (!renameItem || !newName.trim()) return
 
     const token = localStorage.getItem("zipher_token")
-    const endpoint = renameItem.isFolder ? `folders/${renameItem.id}` : `files/${renameItem.id}`
-    
+    const endpoint = renameItem.isFolder
+      ? `folders/${renameItem.id}`
+      : `files/${renameItem.id}`
+
     let finalName = newName.trim()
     if (!renameItem.isFolder) {
-      const extension = renameItem.name.split('.').pop()
+      const extension = renameItem.name.split(".").pop()
       finalName = extension ? `${finalName}.${extension}` : finalName
     }
 
@@ -329,20 +494,51 @@ export function MyFilesSection() {
 
   const handleDownload = async (id: string, name: string) => {
     const token = localStorage.getItem("zipher_token")
+    const privateKeyPem = loadPrivateKey()
+
     try {
-      const response = await fetch(`http://localhost:8000/api/v1/files/${id}/download`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        },
-      })
-      const data = await response.json()
-      
-      if (data.name) {
-          const link = document.createElement('a')
-          link.href = `data:${data.mime_type};base64,${data.encrypted_data}`
-          link.download = data.name
-          link.click()
+      const response = await axios.get(
+        `http://localhost:8000/api/v1/files/${id}/download`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      )
+      const data = response.data
+
+      if (data.encrypted_data && data.aes_key_encrypted) {
+        // If we have a private key and it's not a placeholder, decrypt
+        if (privateKeyPem && data.aes_key_encrypted !== "placeholder_encrypted_key") {
+          try {
+            const privKey = await importPrivateKey(privateKeyPem)
+            const aesKeyStr = await decryptAESKey(data.aes_key_encrypted, privKey)
+            const aesKey = await importAESKey(aesKeyStr)
+
+            const encryptedBuffer = Uint8Array.from(atob(data.encrypted_data), (c) =>
+              c.charCodeAt(0)
+            ).buffer
+            const decryptedBuffer = await decryptData(encryptedBuffer, aesKey)
+
+            const blob = new Blob([decryptedBuffer], { type: data.mime_type })
+            const url = URL.createObjectURL(blob)
+            const link = document.createElement("a")
+            link.href = url
+            link.download = data.name
+            link.click()
+            setTimeout(() => URL.revokeObjectURL(url), 100)
+            return
+          } catch (err) {
+            console.error("Decryption failed for download:", err)
+          }
+        }
+
+        // Fallback: download raw (might be old file or missing key)
+        const link = document.createElement("a")
+        link.href = `data:${data.mime_type};base64,${data.encrypted_data}`
+        link.download = data.name
+        link.click()
       }
     } catch (error) {
       console.error("Failed to download file:", error)
@@ -353,25 +549,65 @@ export function MyFilesSection() {
     if (isFolder) {
       handleFolderClick(id, name)
     } else {
+      setIsOpening(true)
       const token = localStorage.getItem("zipher_token")
+      const privateKeyPem = loadPrivateKey()
+
       try {
-        const response = await fetch(`http://localhost:8000/api/v1/files/${id}/download`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-        })
-        const data = await response.json()
-        
-        if (data.name) {
-            setPreviewItem({
+        const response = await axios.get(
+          `http://localhost:8000/api/v1/files/${id}/download?intent=preview`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/json",
+            },
+          }
+        )
+        const data = response.data
+
+        if (data.encrypted_data && data.aes_key_encrypted) {
+          if (privateKeyPem && data.aes_key_encrypted !== "placeholder_encrypted_key") {
+            try {
+              const privKey = await importPrivateKey(privateKeyPem)
+              const aesKeyStr = await decryptAESKey(data.aes_key_encrypted, privKey)
+              const aesKey = await importAESKey(aesKeyStr)
+
+              const encryptedBuffer = Uint8Array.from(atob(data.encrypted_data), (c) =>
+                c.charCodeAt(0)
+              ).buffer
+              const decryptedBuffer = await decryptData(encryptedBuffer, aesKey)
+
+              const blob = new Blob([decryptedBuffer], { type: data.mime_type })
+              const url = URL.createObjectURL(blob)
+              const content = isTextDecodable(data.mime_type, data.name)
+                ? new TextDecoder().decode(decryptedBuffer)
+                : undefined
+
+              setPreviewItem({
                 name: data.name,
                 mimeType: data.mime_type,
-                url: `data:${data.mime_type};base64,${data.encrypted_data}`
-            })
+                url,
+                content,
+                tags: data.tags,
+              })
+              return
+            } catch (err) {
+              console.error("Decryption failed for preview:", err)
+            }
+          }
+
+          // Fallback: show raw
+          setPreviewItem({
+            name: data.name,
+            mimeType: data.mime_type,
+            url: `data:${data.mime_type};base64,${data.encrypted_data}`,
+            tags: data.tags,
+          })
         }
       } catch (error) {
         console.error("Failed to open file:", error)
+      } finally {
+        setIsOpening(false)
       }
     }
   }
@@ -381,20 +617,20 @@ export function MyFilesSection() {
       <div className="sticky top-0 z-30 -mx-4 h-20 bg-background px-4 md:-mx-6 md:px-6">
         <div className="grid h-full grid-cols-[1fr_auto] items-center gap-3">
           <div className="flex items-center gap-2 overflow-hidden">
-            <nav className="flex items-center text-sm font-medium whitespace-nowrap overflow-x-auto no-scrollbar">
-              <button 
+            <nav className="no-scrollbar flex items-center overflow-x-auto text-sm font-medium whitespace-nowrap">
+              <button
                 onClick={() => handleBreadcrumbClick(-1)}
-                className={`transition-colors hover:text-foreground p-1 rounded ${currentFolderId ? "text-muted-foreground" : "text-xl font-semibold tracking-tight text-foreground"}`}
+                className={`rounded p-1 transition-colors hover:text-foreground ${currentFolderId ? "text-muted-foreground" : "text-xl font-semibold tracking-tight text-foreground"}`}
               >
                 My Files
               </button>
-              
+
               {folderStack.map((folder, index) => (
                 <div key={folder.id} className="flex items-center">
                   <span className="mx-2 text-muted-foreground">/</span>
                   <button
                     onClick={() => handleBreadcrumbClick(index)}
-                    className={`transition-colors hover:text-foreground truncate max-w-[150px] p-1 rounded ${index === folderStack.length - 1 ? "text-xl font-semibold tracking-tight text-foreground" : "text-muted-foreground"}`}
+                    className={`max-w-[150px] truncate rounded p-1 transition-colors hover:text-foreground ${index === folderStack.length - 1 ? "text-xl font-semibold tracking-tight text-foreground" : "text-muted-foreground"}`}
                   >
                     {folder.name}
                   </button>
@@ -404,10 +640,16 @@ export function MyFilesSection() {
           </div>
 
           <div className="flex items-center gap-2">
-            <FileLayoutSwitch
-              isList={isListView}
-              onCheckedChange={setIsListView}
-            />
+            <Suspense
+              fallback={
+                <div className="h-8 w-16 animate-pulse rounded bg-muted" />
+              }
+            >
+              <FileLayoutSwitch
+                isList={isListView}
+                onCheckedChange={setIsListView}
+              />
+            </Suspense>
             <NewDropdownMenu currentFolderId={currentFolderId} />
           </div>
         </div>
@@ -419,7 +661,24 @@ export function MyFilesSection() {
         </div>
       ) : items.length === 0 ? (
         <div className="flex h-40 flex-col items-center justify-center gap-2">
-          <p className="text-muted-foreground">Folder ini kosong</p>
+          <p className="text-muted-foreground">
+            {searchParams.get("q")
+              ? "Tidak ada hasil ditemukan"
+              : "Folder ini kosong"}
+          </p>
+          {searchParams.get("q") && (
+            <Button
+              variant="link"
+              onClick={() => {
+                const url = new URL(window.location.href)
+                url.searchParams.delete("q")
+                window.history.pushState({}, "", url.toString())
+                fetchContents()
+              }}
+            >
+              Hapus pencarian
+            </Button>
+          )}
         </div>
       ) : isListView ? (
         <FilesListTable
@@ -431,11 +690,12 @@ export function MyFilesSection() {
           onFolderClick={handleFolderClick}
           onRename={handleRenameClick}
           onMove={(id, name, isFolder) => setMoveItem({ id, name, isFolder })}
+          onShare={(id, name) => setShareItem({ id, name })}
           onOpen={handleOpen}
           onDownload={handleDownload}
         />
       ) : (
-        <div className=" grid gap-4 pt-1.5 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 pt-1.5 sm:grid-cols-2 xl:grid-cols-3">
           {filteredFiles.map((file) => (
             <FileCard
               key={file.id}
@@ -450,9 +710,16 @@ export function MyFilesSection() {
               isStarred={file.isStarred}
               onDelete={handleDelete}
               onToggleStar={handleToggleStar}
-              onFolderClick={file.isFolder ? () => handleFolderClick(file.id, file.name) : undefined}
+              onFolderClick={
+                file.isFolder
+                  ? () => handleFolderClick(file.id, file.name)
+                  : undefined
+              }
               onRename={handleRenameClick}
-              onMove={(id, name, isFolder) => setMoveItem({ id, name, isFolder })}
+              onMove={(id, name, isFolder) =>
+                setMoveItem({ id, name, isFolder })
+              }
+              onShare={(id, name) => setShareItem({ id, name })}
               onOpen={handleOpen}
               onDownload={handleDownload}
             />
@@ -460,14 +727,30 @@ export function MyFilesSection() {
         </div>
       )}
 
-      {/* Rename Dialog */}
-      <Dialog open={!!renameItem} onOpenChange={(open) => !open && setRenameConfirm(null)}>
+      {shareItem && (
+        <ShareDialog
+          open={!!shareItem}
+          onOpenChange={(open) => !open && setShareItem(null)}
+          fileId={shareItem.id}
+          fileName={shareItem.name}
+        />
+      )}
+
+      <Dialog
+        open={!!renameItem}
+        onOpenChange={(open) => !open && setRenameConfirm(null)}
+      >
         <DialogContent className="sm:max-w-md">
           <form onSubmit={handleRenameSubmit}>
             <DialogHeader>
-              <DialogTitle>Ubah Nama {renameItem?.isFolder ? 'Folder' : 'File'}</DialogTitle>
+              <DialogTitle>
+                Ubah Nama {renameItem?.isFolder ? "Folder" : "File"}
+              </DialogTitle>
               <DialogDescription>
-                Masukkan nama baru untuk item ini. {renameItem?.isFolder ? '' : 'Ekstensi file akan tetap dipertahankan.'}
+                Masukkan nama baru untuk item ini.{" "}
+                {renameItem?.isFolder
+                  ? ""
+                  : "Ekstensi file akan tetap dipertahankan."}
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
@@ -482,15 +765,19 @@ export function MyFilesSection() {
                     autoFocus
                   />
                   {!renameItem?.isFolder && (
-                    <span className="text-sm text-muted-foreground font-mono bg-muted px-2 py-1 rounded border">
-                      .{renameItem?.name.split('.').pop()}
+                    <span className="rounded border bg-muted px-2 py-1 font-mono text-sm text-muted-foreground">
+                      .{renameItem?.name.split(".").pop()}
                     </span>
                   )}
                 </div>
               </div>
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setRenameConfirm(null)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setRenameConfirm(null)}
+              >
                 Batal
               </Button>
               <Button type="submit" disabled={!newName.trim()}>
@@ -501,119 +788,125 @@ export function MyFilesSection() {
         </DialogContent>
       </Dialog>
 
-      {/* Move Dialog */}
-      <Dialog open={!!moveItem} onOpenChange={(open) => {
+      <Dialog
+        open={!!moveItem}
+        onOpenChange={(open) => {
           if (!open) {
-              setMoveItem(null)
-              setMoveCurrentFolderId(null)
-              setMoveFolderStack([])
+            setMoveItem(null)
+            setMoveCurrentFolderId(null)
+            setMoveFolderStack([])
           }
-      }}>
+        }}
+      >
         <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Pindahkan {moveItem?.isFolder ? 'Folder' : 'File'}</DialogTitle>
-              <DialogDescription>
-                Pilih folder tujuan untuk <strong>{moveItem?.name}</strong>.
-              </DialogDescription>
-            </DialogHeader>
-            
-            <div className="mt-4 rounded-md border border-border">
-                <div className="flex items-center gap-2 border-b p-2 bg-muted/30">
-                    <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="h-8 px-2"
-                        onClick={() => {
-                            setMoveCurrentFolderId(null)
-                            setMoveFolderStack([])
-                        }}
-                    >
-                        <Home className="size-4 mr-1" />
-                        My Files
-                    </Button>
-                    {moveFolderStack.map((f, i) => (
-                        <div key={f.id} className="flex items-center">
-                            <ChevronRight className="size-3 text-muted-foreground" />
-                            <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="h-8 px-2 max-w-[100px] truncate"
-                                onClick={() => {
-                                    const newStack = moveFolderStack.slice(0, i + 1)
-                                    setMoveFolderStack(newStack)
-                                    setMoveCurrentFolderId(f.id)
-                                }}
-                            >
-                                {f.name}
-                            </Button>
-                        </div>
-                    ))}
-                </div>
-                <div className="max-h-[300px] overflow-y-auto p-1">
-                    {moveTargetFolders.length === 0 ? (
-                        <p className="p-4 text-center text-sm text-muted-foreground">Tidak ada folder di sini</p>
-                    ) : (
-                        moveTargetFolders.map((f) => (
-                            <button
-                                key={f.id}
-                                className="flex w-full items-center gap-2 rounded-sm p-2 text-sm hover:bg-muted text-left"
-                                onClick={() => {
-                                    setMoveCurrentFolderId(f.id)
-                                    setMoveFolderStack([...moveFolderStack, { id: f.id, name: f.name }])
-                                }}
-                            >
-                                <Folder className="size-4 text-blue-500" />
-                                <span className="flex-1 truncate">{f.name}</span>
-                                <ChevronRight className="size-3 text-muted-foreground" />
-                            </button>
-                        ))
-                    )}
-                </div>
-            </div>
+          <DialogHeader>
+            <DialogTitle>
+              Pindahkan {moveItem?.isFolder ? "Folder" : "File"}
+            </DialogTitle>
+            <DialogDescription>
+              Pilih folder tujuan untuk <strong>{moveItem?.name}</strong>.
+            </DialogDescription>
+          </DialogHeader>
 
-            <DialogFooter className="mt-4">
-              <Button type="button" variant="outline" onClick={() => setMoveItem(null)}>
-                Batal
-              </Button>
-              <Button 
-                onClick={handleMoveSubmit} 
-                disabled={isMoving || (moveCurrentFolderId === (items.find(i => i.id === moveItem?.id)?.parentId || null))}
+          <div className="mt-4 rounded-md border border-border">
+            <div className="flex items-center gap-2 border-b bg-muted/30 p-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2"
+                onClick={() => {
+                  setMoveCurrentFolderId(null)
+                  setMoveFolderStack([])
+                }}
               >
-                Pindahkan ke Sini
+                <Home className="mr-1 size-4" />
+                My Files
               </Button>
-            </DialogFooter>
+              {moveFolderStack.map((f, i) => (
+                <div key={f.id} className="flex items-center">
+                  <ChevronRight className="size-3 text-muted-foreground" />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 max-w-[100px] truncate px-2"
+                    onClick={() => {
+                      const newStack = moveFolderStack.slice(0, i + 1)
+                      setMoveFolderStack(newStack)
+                      setMoveCurrentFolderId(f.id)
+                    }}
+                  >
+                    {f.name}
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <div className="max-h-[300px] overflow-y-auto p-1">
+              {moveTargetFolders.length === 0 ? (
+                <p className="p-4 text-center text-sm text-muted-foreground">
+                  Tidak ada folder di sini
+                </p>
+              ) : (
+                moveTargetFolders.map((f) => (
+                  <button
+                    key={f.id}
+                    className="flex w-full items-center gap-2 rounded-sm p-2 text-left text-sm hover:bg-muted"
+                    onClick={() => {
+                      setMoveCurrentFolderId(f.id)
+                      setMoveFolderStack([
+                        ...moveFolderStack,
+                        { id: f.id, name: f.name },
+                      ])
+                    }}
+                  >
+                    <Folder className="size-4 text-blue-500" />
+                    <span className="flex-1 truncate">{f.name}</span>
+                    <ChevronRight className="size-3 text-muted-foreground" />
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="mt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setMoveItem(null)}
+            >
+              Batal
+            </Button>
+            <Button
+              onClick={handleMoveSubmit}
+              disabled={
+                isMoving ||
+                moveCurrentFolderId ===
+                  (items.find((i) => i.id === moveItem?.id)?.parentId || null)
+              }
+            >
+              Pindahkan ke Sini
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Preview Dialog */}
-      <Dialog open={!!previewItem} onOpenChange={(open) => !open && setPreviewItem(null)}>
-        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-0">
-          <DialogHeader className="p-4 border-b flex flex-row items-center justify-between space-y-0">
+      <Dialog
+        open={!!previewItem}
+        onOpenChange={(open) => !open && setPreviewItem(null)}
+      >
+        <DialogContent className="flex h-[90vh] flex-col overflow-hidden p-0 sm:max-w-4xl">
+          <DialogHeader className="flex flex-none flex-row items-center justify-between space-y-0 border-b p-4">
             <div>
-                <DialogTitle className="truncate max-w-[300px] md:max-w-md">{previewItem?.name}</DialogTitle>
-                <DialogDescription className="text-xs">{previewItem?.mimeType}</DialogDescription>
+              <DialogTitle className="max-w-[300px] truncate md:max-w-md">
+                {previewItem?.name}
+              </DialogTitle>
+              <DialogDescription className="sr-only">
+                {previewItem?.mimeType}
+              </DialogDescription>
             </div>
           </DialogHeader>
-          
-          <div className="flex-1 overflow-auto bg-muted/20 flex items-center justify-center min-h-[300px]">
-            {previewItem?.mimeType.startsWith('image/') ? (
-                <img 
-                    src={previewItem.url} 
-                    alt={previewItem.name} 
-                    className="max-w-full max-h-full object-contain shadow-sm" 
-                />
-            ) : previewItem?.mimeType === 'application/pdf' || previewItem?.mimeType.startsWith('text/') ? (
-                <iframe 
-                    src={previewItem.url} 
-                    className="w-full h-full min-h-[60vh] border-none bg-white"
-                    title={previewItem.name}
-                />
-            ) : (
-                <div className="text-center p-8">
-                    <FileIcon className="size-16 mx-auto mb-4 text-muted-foreground opacity-20" />
-                    <p className="text-muted-foreground font-medium">Pratinjau tidak tersedia untuk tipe file ini.</p>
-                </div>
-            )}
+
+          <div className="flex flex-1 items-center justify-center overflow-hidden bg-muted/20 p-4">
+            {previewItem && <FilePreviewContent previewItem={previewItem} />}
           </div>
         </DialogContent>
       </Dialog>
