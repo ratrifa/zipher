@@ -5,6 +5,7 @@ use App\Http\Controllers\ContentsController;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\FolderController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\RecentController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\ShareController;
 use Illuminate\Support\Facades\Route;
@@ -29,6 +30,9 @@ Route::prefix('v1')->group(function () {
         // Smart search
         Route::get('search', [SearchController::class, 'search']);
 
+        // Recent activity
+        Route::get('recent', [RecentController::class, 'index']);
+
         // Files
         Route::get('files/trash', [FileController::class, 'trash']);
         Route::get('files/starred', [FileController::class, 'starred']);
@@ -36,10 +40,14 @@ Route::prefix('v1')->group(function () {
         Route::get('files', [FileController::class, 'index']);
         Route::post('files/upload', [FileController::class, 'upload']);
         Route::get('files/{id}/download', [FileController::class, 'download']);
+        Route::get('files/{id}/key', [FileController::class, 'getKey']);
         Route::patch('files/{id}', [FileController::class, 'update']);
         Route::delete('files/{id}', [FileController::class, 'destroy']);
         Route::post('files/{id}/restore', [FileController::class, 'restore']);
         Route::delete('files/{id}/force', [FileController::class, 'forceDelete']);
+
+        // Folders
+        Route::post('folders/{id}/star', [FolderController::class, 'toggleStar']);
         Route::get('files/{id}/tags', [FileController::class, 'tags']);
         Route::put('files/{id}/tags', [FileController::class, 'replaceTags']);
         Route::delete('files/{id}/tags/{tagId}', [FileController::class, 'destroyTag']);
@@ -63,5 +71,6 @@ Route::prefix('v1')->group(function () {
         Route::get('shared/with-me', [ShareController::class, 'sharedWithMe']);
         Route::get('shared/by-me', [ShareController::class, 'sharedByMe']);
         Route::delete('share/{id}', [ShareController::class, 'revoke']);
+        Route::delete('shared/received/{id}', [ShareController::class, 'leave']);
     });
 });
