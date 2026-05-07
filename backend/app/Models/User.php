@@ -34,7 +34,7 @@ class User extends Authenticatable
 
     public function storageUsed(): int
     {
-        return (int) $this->files()->sum('size');
+        return (int) $this->files()->withTrashed()->sum('size');
     }
 
     public function files()

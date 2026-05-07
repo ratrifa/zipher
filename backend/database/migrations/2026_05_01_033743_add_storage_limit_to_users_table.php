@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            // 32GB in bytes
+            // 32GB
             $table->unsignedBigInteger('storage_limit')->default(34359738368)->after('public_key');
         });
     }
