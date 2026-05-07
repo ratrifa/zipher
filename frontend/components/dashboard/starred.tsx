@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import {
   FileImage,
   FileSpreadsheet,
@@ -8,7 +9,10 @@ import {
   Folder,
   Presentation,
   File as FileIcon,
+  FileCode2,
 } from "lucide-react"
+import axios from "axios"
+import { FilePreviewContent, isTextDecodable } from "@/components/dashboard/file-preview-content"
 
 import { FileCard } from "@/components/dashboard/file-card"
 import { FileLayoutSwitch } from "@/components/dashboard/file-layout-switch"
@@ -16,22 +20,92 @@ import {
   FilesListTable,
   type FileFilterOption,
 } from "@/components/dashboard/files-list-table"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  importPrivateKey,
+  importAESKey,
+  decryptAESKey,
+  decryptData,
+  loadPrivateKey,
+} from "@/lib/crypto"
 
-function getIcon(mimeType: string, isFolder: boolean) {
+function getIcon(mimeType: string, isFolder: boolean, fileName: string = "") {
   if (isFolder) return Folder
+
+  const lowerName = fileName.toLowerCase()
+  const isCode =
+    lowerName.endsWith(".md") ||
+    lowerName.endsWith(".ts") ||
+    lowerName.endsWith(".tsx") ||
+    lowerName.endsWith(".js") ||
+    lowerName.endsWith(".py") ||
+    lowerName.endsWith(".json") ||
+    mimeType?.includes("javascript") ||
+    mimeType?.includes("typescript") ||
+    mimeType?.includes("markdown")
+
+  if (isCode) return FileCode2
   if (mimeType?.includes("image")) return FileImage
-  if (mimeType?.includes("spreadsheet") || mimeType?.includes("excel") || mimeType?.includes("csv")) return FileSpreadsheet
-  if (mimeType?.includes("pdf") || mimeType?.includes("text") || mimeType?.includes("word")) return FileText
-  if (mimeType?.includes("presentation") || mimeType?.includes("powerpoint")) return Presentation
+  if (
+    mimeType?.includes("spreadsheet") ||
+    mimeType?.includes("excel") ||
+    mimeType?.includes("csv")
+  )
+    return FileSpreadsheet
+  if (mimeType?.includes("presentation") || mimeType?.includes("powerpoint"))
+    return Presentation
+  if (
+    mimeType?.includes("pdf") ||
+    mimeType?.includes("word") ||
+    mimeType?.includes("officedocument.wordprocessingml") ||
+    mimeType?.includes("text")
+  )
+    return FileText
   return FileIcon
 }
 
-function getIconClassName(mimeType: string, isFolder: boolean) {
+function getIconClassName(mimeType: string, isFolder: boolean, fileName: string = "") {
   if (isFolder) return "bg-blue-100 text-blue-700"
+
+  const lowerName = fileName.toLowerCase()
+  const isCode =
+    lowerName.endsWith(".md") ||
+    lowerName.endsWith(".ts") ||
+    lowerName.endsWith(".tsx") ||
+    lowerName.endsWith(".js") ||
+    lowerName.endsWith(".py") ||
+    lowerName.endsWith(".json") ||
+    mimeType?.includes("javascript") ||
+    mimeType?.includes("typescript") ||
+    mimeType?.includes("markdown")
+
+  if (isCode) return "bg-slate-100 text-slate-700"
   if (mimeType?.includes("image")) return "bg-violet-100 text-violet-700"
-  if (mimeType?.includes("spreadsheet") || mimeType?.includes("excel") || mimeType?.includes("csv")) return "bg-emerald-100 text-emerald-700"
-  if (mimeType?.includes("pdf") || mimeType?.includes("text") || mimeType?.includes("word")) return "bg-orange-100 text-orange-700"
-  if (mimeType?.includes("presentation") || mimeType?.includes("powerpoint")) return "bg-rose-100 text-rose-700"
+  if (
+    mimeType?.includes("spreadsheet") ||
+    mimeType?.includes("excel") ||
+    mimeType?.includes("csv")
+  )
+    return "bg-emerald-100 text-emerald-700"
+  if (mimeType?.includes("presentation") || mimeType?.includes("powerpoint"))
+    return "bg-rose-100 text-rose-700"
+  if (mimeType?.includes("pdf")) return "bg-orange-100 text-orange-700"
+  if (
+    mimeType?.includes("word") ||
+    mimeType?.includes("officedocument.wordprocessingml")
+  )
+    return "bg-sky-100 text-sky-700"
+  if (mimeType?.includes("text")) return "bg-slate-100 text-slate-700"
   return "bg-slate-100 text-slate-700"
 }
 
@@ -49,53 +123,96 @@ function formatDate(dateString: string) {
   return date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
+    year: "numeric",
   })
 }
 
 export function StarredSection() {
+  const router = useRouter()
   const [isListView, setIsListView] = useState(true)
   const [fileFilter, setFileFilter] = useState<FileFilterOption>("none")
   const [items, setItems] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
-  useEffect(() => {
-    async function fetchStarred() {
-      const token = localStorage.getItem("zipher_token")
-      if (!token) return
+  const [renameItem, setRenameConfirm] = useState<{
+    id: string
+    name: string
+    isFolder: boolean
+  } | null>(null)
+  const [newName, setNewName] = useState("")
+  const [previewItem, setPreviewItem] = useState<{
+    name: string
+    url: string
+    mimeType: string
+    content?: string
+  } | null>(null)
+  const [isOpening, setIsOpening] = useState(false)
 
-      try {
-        const response = await fetch("http://localhost:8000/api/v1/files/starred", {
+  const fetchStarred = async () => {
+    const token = localStorage.getItem("zipher_token")
+    if (!token) return
+
+    setIsLoading(true)
+    try {
+      const response = await axios.get(
+        "http://localhost:8000/api/v1/files/starred",
+        {
           headers: {
             Authorization: `Bearer ${token}`,
             Accept: "application/json",
           },
-        })
-        const data = await response.json()
-        if (data.success) {
-          const formattedItems = data.data.map((item: any) => ({
+        }
+      )
+      const data = response.data
+      if (data.success && Array.isArray(data.data)) {
+        const formattedItems = data.data.map((item: any) => {
+          const isFolder = item.type === "folder"
+          let metaText = ""
+          if (isFolder) {
+            metaText = `Folder • ${item.items_count || 0} items`
+          } else {
+            metaText = formatBytes(item.size || 0)
+          }
+
+          const location = isFolder
+            ? item.parent?.name || "Root"
+            : item.folder?.name || "Root"
+
+          return {
             id: item.id,
             name: item.name,
-            meta: `${item.mime_type} • ${formatBytes(item.size)}`,
+            meta: metaText,
             updatedAt: formatDate(item.updated_at),
             owner: "You",
-            size: formatBytes(item.size),
-            sizeBytes: item.size || 0,
-            location: item.folder?.name || "Root",
-            icon: getIcon(item.mime_type || "", false),
-            iconClassName: getIconClassName(item.mime_type || "", false),
-            isFolder: false,
+            size: isFolder
+              ? formatBytes(item.total_size || 0)
+              : formatBytes(item.size || 0),
+            sizeBytes: isFolder ? item.total_size || 0 : item.size || 0,
+            location: location,
+            icon: getIcon(item.mime_type || "", isFolder, item.name),
+            iconClassName: getIconClassName(item.mime_type || "", isFolder, item.name),
+            isFolder: isFolder,
             isStarred: true,
-          }))
-          setItems(formattedItems)
-        }
-      } catch (error) {
-        console.error("Failed to fetch starred files:", error)
-      } finally {
-        setIsLoading(false)
+          }
+        })
+        setItems(formattedItems)
+      } else {
+        setItems([])
       }
+    } catch (error) {
+      console.error("Failed to fetch starred items:", error)
+      setItems([])
+    } finally {
+      setIsLoading(false)
     }
+  }
 
+  useEffect(() => {
     fetchStarred()
+
+    const handleUpdate = () => fetchStarred()
+    window.addEventListener("contents-updated", handleUpdate)
+    return () => window.removeEventListener("contents-updated", handleUpdate)
   }, [])
 
   const filteredFiles = useMemo(() => {
@@ -119,16 +236,13 @@ export function StarredSection() {
     const endpoint = isFolder ? `folders/${id}` : `files/${id}`
 
     try {
-      const response = await fetch(`http://localhost:8000/api/v1/${endpoint}`, {
-        method: "DELETE",
+      await axios.delete(`http://localhost:8000/api/v1/${endpoint}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: "application/json",
         },
       })
-      if (response.ok) {
-        window.dispatchEvent(new Event("contents-updated"))
-      }
+      window.dispatchEvent(new Event("contents-updated"))
     } catch (error) {
       console.error("Failed to delete:", error)
     }
@@ -136,19 +250,180 @@ export function StarredSection() {
 
   const handleToggleStar = async (id: string) => {
     const token = localStorage.getItem("zipher_token")
+    const item = items.find((i) => i.id === id)
+    if (!item) return
+
+    const endpoint = item.isFolder ? `folders/${id}/star` : `files/${id}/star`
+
     try {
-      const response = await fetch(`http://localhost:8000/api/v1/files/${id}/star`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        },
-      })
-      if (response.ok) {
-        window.dispatchEvent(new Event("contents-updated"))
-      }
+      await axios.post(
+        `http://localhost:8000/api/v1/${endpoint}`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      )
+      window.dispatchEvent(new Event("contents-updated"))
     } catch (error) {
       console.error("Failed to toggle star:", error)
+    }
+  }
+
+  const handleOpen = async (id: string, name: string, isFolder: boolean) => {
+    if (isFolder) {
+      router.push(`/dashboard?folder=${id}`)
+      return
+    }
+
+    setIsOpening(true)
+    const token = localStorage.getItem("zipher_token")
+    const privateKeyPem = loadPrivateKey()
+
+    try {
+      const response = await axios.get(
+        `http://localhost:8000/api/v1/files/${id}/download?intent=preview`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      )
+      const data = response.data
+
+      if (data.encrypted_data && data.aes_key_encrypted) {
+        if (privateKeyPem && data.aes_key_encrypted !== "placeholder_encrypted_key") {
+          try {
+            const privKey = await importPrivateKey(privateKeyPem)
+            const aesKeyStr = await decryptAESKey(data.aes_key_encrypted, privKey)
+            const aesKey = await importAESKey(aesKeyStr)
+
+            const encryptedBuffer = Uint8Array.from(atob(data.encrypted_data), (c) =>
+              c.charCodeAt(0)
+            ).buffer
+            const decryptedBuffer = await decryptData(encryptedBuffer, aesKey)
+
+            const blob = new Blob([decryptedBuffer], { type: data.mime_type })
+            const url = URL.createObjectURL(blob)
+            const content = isTextDecodable(data.mime_type, data.name)
+              ? new TextDecoder().decode(decryptedBuffer)
+              : undefined
+            setPreviewItem({ name: data.name, mimeType: data.mime_type, url, content })
+            return
+          } catch (err) {
+            console.error("Decryption failed for preview:", err)
+          }
+        }
+
+        setPreviewItem({
+          name: data.name,
+          mimeType: data.mime_type,
+          url: `data:${data.mime_type};base64,${data.encrypted_data}`,
+        })
+      }
+    } catch (error) {
+      console.error("Failed to open file:", error)
+    } finally {
+      setIsOpening(false)
+    }
+  }
+
+  const handleDownload = async (id: string, name: string) => {
+    const token = localStorage.getItem("zipher_token")
+    const privateKeyPem = loadPrivateKey()
+
+    try {
+      const response = await axios.get(
+        `http://localhost:8000/api/v1/files/${id}/download`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      )
+      const data = response.data
+
+      if (data.encrypted_data && data.aes_key_encrypted) {
+        if (privateKeyPem && data.aes_key_encrypted !== "placeholder_encrypted_key") {
+          try {
+            const privKey = await importPrivateKey(privateKeyPem)
+            const aesKeyStr = await decryptAESKey(data.aes_key_encrypted, privKey)
+            const aesKey = await importAESKey(aesKeyStr)
+
+            const encryptedBuffer = Uint8Array.from(atob(data.encrypted_data), (c) =>
+              c.charCodeAt(0)
+            ).buffer
+            const decryptedBuffer = await decryptData(encryptedBuffer, aesKey)
+
+            const blob = new Blob([decryptedBuffer], { type: data.mime_type })
+            const url = URL.createObjectURL(blob)
+            const link = document.createElement("a")
+            link.href = url
+            link.download = data.name
+            link.click()
+            setTimeout(() => URL.revokeObjectURL(url), 100)
+            return
+          } catch (err) {
+            console.error("Decryption failed for download:", err)
+          }
+        }
+
+        const link = document.createElement("a")
+        link.href = `data:${data.mime_type};base64,${data.encrypted_data}`
+        link.download = data.name
+        link.click()
+      }
+    } catch (error) {
+      console.error("Failed to download file:", error)
+    }
+  }
+
+  const handleRenameClick = (
+    id: string,
+    currentName: string,
+    isFolder: boolean
+  ) => {
+    const nameOnly = isFolder
+      ? currentName
+      : currentName.replace(/\.[^/.]+$/, "")
+    setRenameConfirm({ id, name: currentName, isFolder })
+    setNewName(nameOnly)
+  }
+
+  const handleRenameSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!renameItem || !newName.trim()) return
+
+    const token = localStorage.getItem("zipher_token")
+    const endpoint = renameItem.isFolder
+      ? `folders/${renameItem.id}`
+      : `files/${renameItem.id}`
+
+    let finalName = newName.trim()
+    if (!renameItem.isFolder) {
+      const extension = renameItem.name.split(".").pop()
+      finalName = extension ? `${finalName}.${extension}` : finalName
+    }
+
+    try {
+      await axios.patch(
+        `http://localhost:8000/api/v1/${endpoint}`,
+        { name: finalName },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      )
+      window.dispatchEvent(new Event("contents-updated"))
+      setRenameConfirm(null)
+    } catch (error) {
+      console.error("Failed to rename:", error)
     }
   }
 
@@ -157,9 +432,7 @@ export function StarredSection() {
       <div className="sticky top-0 z-30 -mx-4 h-20 bg-background px-4 md:-mx-6 md:px-6">
         <div className="grid h-full grid-cols-[1fr_auto] items-center gap-3">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              Starred
-            </h1>
+            <h1 className="text-2xl font-semibold tracking-tight">Starred</h1>
             <p className="text-sm text-muted-foreground">Your starred files</p>
           </div>
 
@@ -176,6 +449,10 @@ export function StarredSection() {
         <div className="flex h-40 items-center justify-center">
           <p className="text-muted-foreground">Loading...</p>
         </div>
+      ) : items.length === 0 ? (
+        <div className="flex h-40 items-center justify-center">
+          <p className="text-muted-foreground">Tidak ada item berbintang</p>
+        </div>
       ) : isListView ? (
         <FilesListTable
           files={filteredFiles}
@@ -185,6 +462,9 @@ export function StarredSection() {
           showStarredView={true}
           onDelete={handleDelete}
           onToggleStar={handleToggleStar}
+          onOpen={handleOpen}
+          onDownload={handleDownload}
+          onRename={handleRenameClick}
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -202,10 +482,95 @@ export function StarredSection() {
               isStarred={file.isStarred}
               onDelete={handleDelete}
               onToggleStar={handleToggleStar}
+              onOpen={handleOpen}
+              onDownload={handleDownload}
+              onRename={handleRenameClick}
             />
           ))}
         </div>
       )}
+
+      <Dialog
+        open={!!renameItem}
+        onOpenChange={(open) => !open && setRenameConfirm(null)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <form onSubmit={handleRenameSubmit}>
+            <DialogHeader>
+              <DialogTitle>
+                Ubah Nama {renameItem?.isFolder ? "Folder" : "File"}
+              </DialogTitle>
+              <DialogDescription>
+                Masukkan nama baru untuk item ini.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid items-center gap-2">
+                <Label htmlFor="rename">Nama Baru</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="rename"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    className="flex-1"
+                    autoFocus
+                  />
+                  {!renameItem?.isFolder && (
+                    <span className="rounded border bg-muted px-2 py-1 font-mono text-sm text-muted-foreground">
+                      .{renameItem?.name.split(".").pop()}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setRenameConfirm(null)}
+              >
+                Batal
+              </Button>
+              <Button type="submit" disabled={!newName.trim()}>
+                Simpan Perubahan
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {isOpening && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <p className="text-sm font-medium">Mendekripsi file...</p>
+        </div>
+      )}
+
+      <Dialog
+        open={!!previewItem}
+        onOpenChange={(open) => {
+          if (!open && previewItem) {
+            URL.revokeObjectURL(previewItem.url)
+            setPreviewItem(null)
+          }
+        }}
+      >
+        <DialogContent className="flex h-[90vh] flex-col overflow-hidden p-0 sm:max-w-4xl">
+          <DialogHeader className="flex flex-none flex-row items-center justify-between space-y-0 border-b p-4">
+            <div>
+              <DialogTitle className="max-w-[300px] truncate md:max-w-md">
+                {previewItem?.name}
+              </DialogTitle>
+              <DialogDescription className="sr-only">
+                {previewItem?.mimeType}
+              </DialogDescription>
+            </div>
+          </DialogHeader>
+
+          <div className="flex flex-1 items-center justify-center overflow-hidden bg-muted/20 p-4">
+            {previewItem && <FilePreviewContent previewItem={previewItem} />}
+          </div>
+        </DialogContent>
+      </Dialog>
     </section>
   )
 }
