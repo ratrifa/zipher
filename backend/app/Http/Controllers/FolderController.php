@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\File;
+use App\Models\FileActivity;
 use App\Models\Folder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -41,15 +42,17 @@ class FolderController extends Controller
         $parentId = $request->parent_id;
         $userId = auth()->id();
 
-        $originalName = $name;
-        $counter = 1;
-
-        while (Folder::where('user_id', $userId)
+        $folder = Folder::where('user_id', $userId)
             ->where('parent_id', $parentId)
             ->where('name', $name)
-            ->exists()) {
-            $name = $originalName . " ($counter)";
-            $counter++;
+            ->first();
+
+        if ($folder) {
+            return response()->json([
+                'success' => true,
+                'data' => $folder,
+                'message' => 'Folder already exists, using existing one',
+            ], 200);
         }
 
         $folder = Folder::create([
@@ -57,6 +60,19 @@ class FolderController extends Controller
             'user_id' => $userId,
             'parent_id' => $parentId,
         ]);
+
+        try {
+            FileActivity::create([
+                'user_id'   => $userId,
+                'file_id'   => null,
+                'file_name' => $folder->name,
+                'mime_type' => null,
+                'is_folder' => true,
+                'action'    => 'created',
+            ]);
+        } catch (\Exception $e) {
+            \Log::warning('Activity log failed (folder create): ' . $e->getMessage());
+        }
 
         return response()->json([
             'success' => true,
@@ -85,6 +101,22 @@ class FolderController extends Controller
         $parentId = $request->has('parent_id') ? $request->parent_id : $folder->parent_id;
         $userId = auth()->id();
 
+        if ($parentId !== null) {
+            if ($parentId === $folder->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'A folder cannot be its own parent.',
+                ], 422);
+            }
+
+            if ($this->isDescendant($folder->id, $parentId)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cannot move a folder into its own descendant.',
+                ], 422);
+            }
+        }
+
         $originalName = $name;
         $counter = 1;
 
@@ -102,6 +134,21 @@ class FolderController extends Controller
             'parent_id' => $parentId,
         ]);
 
+        if ($request->has('name')) {
+            try {
+                FileActivity::create([
+                    'user_id'   => $userId,
+                    'file_id'   => null,
+                    'file_name' => $folder->name,
+                    'mime_type' => null,
+                    'is_folder' => true,
+                    'action'    => 'renamed',
+                ]);
+            } catch (\Exception $e) {
+                \Log::warning('Activity log failed (folder rename): ' . $e->getMessage());
+            }
+        }
+
         return response()->json([
             'success' => true,
             'data' => $folder,
@@ -114,6 +161,19 @@ class FolderController extends Controller
         $folder = Folder::where('id', $id)->where('user_id', auth()->id())->firstOrFail();
         $this->softDeleteDescendants($folder);
         $folder->delete();
+
+        try {
+            FileActivity::create([
+                'user_id'   => auth()->id(),
+                'file_id'   => null,
+                'file_name' => $folder->name,
+                'mime_type' => null,
+                'is_folder' => true,
+                'action'    => 'trashed',
+            ]);
+        } catch (\Exception $e) {
+            \Log::warning('Activity log failed (folder trash): ' . $e->getMessage());
+        }
 
         return response()->json([
             'success' => true,
@@ -150,6 +210,20 @@ class FolderController extends Controller
     public function forceDelete(string $id): JsonResponse
     {
         $folder = Folder::onlyTrashed()->where('id', $id)->where('user_id', auth()->id())->firstOrFail();
+
+        try {
+            FileActivity::create([
+                'user_id'   => auth()->id(),
+                'file_id'   => null,
+                'file_name' => $folder->name,
+                'mime_type' => null,
+                'is_folder' => true,
+                'action'    => 'deleted',
+            ]);
+        } catch (\Exception $e) {
+            \Log::warning('Activity log failed (folder delete): ' . $e->getMessage());
+        }
+
         $this->forceDeleteDescendants($folder);
         $folder->forceDelete();
 
@@ -157,6 +231,29 @@ class FolderController extends Controller
             'success' => true,
             'message' => 'Folder permanently deleted',
         ]);
+    }
+
+    public function toggleStar(string $id): JsonResponse
+    {
+        $folder = Folder::where('id', $id)->where('user_id', auth()->id())->firstOrFail();
+        $folder->update(['is_starred' => !$folder->is_starred]);
+
+        return response()->json([
+            'success' => true,
+            'data' => ['is_starred' => $folder->is_starred],
+        ]);
+    }
+
+    private function isDescendant(string $folderId, string $targetFolderId): bool
+    {
+        $target = Folder::find($targetFolderId);
+        while ($target && $target->parent_id) {
+            if ($target->parent_id === $folderId) {
+                return true;
+            }
+            $target = Folder::find($target->parent_id);
+        }
+        return false;
     }
 
     private function softDeleteDescendants(Folder $folder): void

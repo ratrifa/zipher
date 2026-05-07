@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\File;
+use App\Models\FileActivity;
 use App\Models\SharedFile;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -47,6 +48,19 @@ class ShareController extends Controller
             ]
         );
 
+        try {
+            FileActivity::create([
+                'user_id'   => auth()->id(),
+                'file_id'   => $file->id,
+                'file_name' => $file->name,
+                'mime_type' => $file->mime_type,
+                'is_folder' => false,
+                'action'    => 'shared',
+            ]);
+        } catch (\Exception $e) {
+            \Log::warning('Activity log failed (share): ' . $e->getMessage());
+        }
+
         return response()->json([
             'success' => true,
             'data' => $shared,
@@ -89,6 +103,20 @@ class ShareController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Access revoked',
+        ]);
+    }
+
+    public function leave(string $id): JsonResponse
+    {
+        $shared = SharedFile::where('id', $id)
+            ->where('receiver_id', auth()->id())
+            ->firstOrFail();
+
+        $shared->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'You have left this shared file',
         ]);
     }
 }

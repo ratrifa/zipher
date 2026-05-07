@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\File;
+use App\Models\FileActivity;
 use App\Models\Folder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 class ContentsController extends Controller
 {
@@ -16,6 +18,16 @@ class ContentsController extends Controller
         $folderId = $request->query('folder_id');
         $sort     = $request->query('sort', 'folders_first');
 
+        $breadcrumbs = [];
+        if ($folderId) {
+            $current = Folder::where('id', $folderId)->where('user_id', $userId)->first();
+            while ($current) {
+                array_unshift($breadcrumbs, ['id' => $current->id, 'name' => $current->name]);
+                if (!$current->parent_id) break;
+                $current = Folder::find($current->parent_id);
+            }
+        }
+
         $folders = Folder::where('user_id', $userId)
             ->where('parent_id', $folderId)
             ->get()
@@ -23,6 +35,7 @@ class ContentsController extends Controller
 
         $files = File::where('user_id', $userId)
             ->where('folder_id', $folderId)
+            ->with('tags')
             ->get()
             ->map(fn($f) => array_merge($f->toArray(), ['type' => 'file']));
 
@@ -40,8 +53,9 @@ class ContentsController extends Controller
         };
 
         return response()->json([
-            'success' => true,
-            'data'    => $items,
+            'success'     => true,
+            'data'        => $items,
+            'breadcrumbs' => $breadcrumbs,
         ]);
     }
 
@@ -78,15 +92,32 @@ class ContentsController extends Controller
             }
         }
 
-        if ($request->has('file_ids')) {
-            File::whereIn('id', $request->file_ids)
+        $activityRecords = [];
+
+        if ($request->has('file_ids') && !empty($request->file_ids)) {
+            $filesToMove = File::whereIn('id', $request->file_ids)
                 ->where('user_id', $userId)
-                ->update(['folder_id' => $targetFolderId]);
+                ->get();
+
+            $filesToMove->each->update(['folder_id' => $targetFolderId]);
+
+            foreach ($filesToMove as $f) {
+                $activityRecords[] = [
+                    'id'         => (string) Str::uuid(),
+                    'user_id'    => $userId,
+                    'file_id'    => $f->id,
+                    'file_name'  => $f->name,
+                    'mime_type'  => $f->mime_type,
+                    'is_folder'  => false,
+                    'action'     => 'moved',
+                    'created_at' => now(),
+                ];
+            }
         }
 
-        if ($request->has('folder_ids')) {
+        if ($request->has('folder_ids') && !empty($request->folder_ids)) {
             $folderIds = $request->folder_ids;
-            
+
             if ($targetFolderId) {
                 foreach ($folderIds as $id) {
                     if ($id === $targetFolderId) {
@@ -95,7 +126,7 @@ class ContentsController extends Controller
                             'message' => 'Cannot move a folder into itself.',
                         ], 422);
                     }
-                    
+
                     if ($this->isDescendant($id, $targetFolderId)) {
                         return response()->json([
                             'success' => false,
@@ -105,9 +136,32 @@ class ContentsController extends Controller
                 }
             }
 
-            Folder::whereIn('id', $folderIds)
+            $foldersToMove = Folder::whereIn('id', $folderIds)
                 ->where('user_id', $userId)
-                ->update(['parent_id' => $targetFolderId]);
+                ->get();
+
+            $foldersToMove->each->update(['parent_id' => $targetFolderId]);
+
+            foreach ($foldersToMove as $f) {
+                $activityRecords[] = [
+                    'id'         => (string) Str::uuid(),
+                    'user_id'    => $userId,
+                    'file_id'    => null,
+                    'file_name'  => $f->name,
+                    'mime_type'  => null,
+                    'is_folder'  => true,
+                    'action'     => 'moved',
+                    'created_at' => now(),
+                ];
+            }
+        }
+
+        try {
+            if (!empty($activityRecords)) {
+                FileActivity::insert($activityRecords);
+            }
+        } catch (\Exception $e) {
+            \Log::warning('Activity log failed (move): ' . $e->getMessage());
         }
 
         return response()->json([

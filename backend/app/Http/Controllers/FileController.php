@@ -3,7 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\File;
+use App\Models\FileActivity;
 use App\Models\FileTag;
+use App\Models\Folder;
+use App\Services\TFIDFService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -14,11 +17,16 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class FileController extends Controller
 {
+    public function __construct(
+        private TFIDFService $tfidf
+    ) {}
+
     public function index(Request $request): JsonResponse
     {
         $folderId = $request->query('folder_id');
         $files = File::where('user_id', auth()->id())
             ->where('folder_id', $folderId)
+            ->with('tags')
             ->get();
 
         return response()->json([
@@ -34,14 +42,15 @@ class FileController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'file' => 'required|file|max:524288', // 512MB
+            'file' => 'required|file|max:1048576', // 1GB 
             'name' => 'required|string|max:255',
             'mime_type' => 'required|string',
             'aes_key_encrypted' => 'required|string',
-            'folder_id'   => 'nullable|uuid|exists:folders,id',
-            'tags'        => 'nullable|array|max:50',
-            'tags.*.name' => 'required_with:tags|string|max:100',
-            'tags.*.score'=> 'required_with:tags|numeric|min:0',
+            'folder_id'    => 'nullable|uuid|exists:folders,id',
+            'tags'         => 'nullable|array|max:50',
+            'tags.*.name'  => 'required_with:tags|string|max:100',
+            'tags.*.score' => 'required_with:tags|numeric|min:0',
+            'text_content' => 'nullable|string|max:500000',
         ]);
 
         if ($validator->fails()) {
@@ -54,6 +63,7 @@ class FileController extends Controller
         $userId = auth()->id();
         $folderId = $request->folder_id;
         $name = $request->name;
+        $mimeType = $request->mime_type;
 
         $originalName = pathinfo($name, PATHINFO_FILENAME);
         $extension = pathinfo($name, PATHINFO_EXTENSION);
@@ -86,14 +96,33 @@ class FileController extends Controller
             'folder_id' => $folderId,
             'name' => $name,
             'size' => $request->file('file')->getSize(),
-            'mime_type' => $request->mime_type,
+            'mime_type' => $mimeType,
             'storage_path' => $path,
             'aes_key_encrypted' => $request->aes_key_encrypted,
         ]);
 
-        if ($request->filled('tags')) {
+        $tags = $request->tags ?? [];
+        $isDocument = Str::startsWith($mimeType, 'text/') || 
+                     in_array($mimeType, [
+                         'application/pdf',
+                         'application/msword',
+                         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                         'application/vnd.ms-excel',
+                         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                         'application/vnd.ms-powerpoint',
+                         'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                         'application/rtf',
+                         'application/json',
+                     ]);
+
+        if ($request->filled('text_content') && $isDocument) {
+            $autoTags = $this->tfidf->extractTags($request->text_content);
+            $tags = array_merge($tags, $autoTags);
+        }
+
+        if (!empty($tags)) {
             FileTag::insert(
-                collect($request->tags)->map(fn($t) => [
+                collect($tags)->map(fn($t) => [
                     'id'         => (string) Str::uuid(),
                     'file_id'    => $file->id,
                     'name'       => $t['name'],
@@ -104,6 +133,19 @@ class FileController extends Controller
             );
         }
 
+        try {
+            FileActivity::create([
+                'user_id'   => $userId,
+                'file_id'   => $file->id,
+                'file_name' => $file->name,
+                'mime_type' => $file->mime_type,
+                'is_folder' => false,
+                'action'    => 'uploaded',
+            ]);
+        } catch (\Exception $e) {
+            \Log::warning('Activity log failed (upload): ' . $e->getMessage());
+        }
+
         return response()->json([
             'success' => true,
             'data'    => $file->load('tags'),
@@ -111,7 +153,7 @@ class FileController extends Controller
         ], 201);
     }
 
-    public function download(string $id): StreamedResponse|JsonResponse
+    public function download(Request $request, string $id): StreamedResponse|JsonResponse
     {
         $userId = auth()->id();
         $file = File::where('id', $id)
@@ -141,6 +183,20 @@ class FileController extends Controller
             ], 404);
         }
 
+        $action = $request->query('intent') === 'preview' ? 'opened' : 'downloaded';
+        try {
+            FileActivity::create([
+                'user_id'   => $userId,
+                'file_id'   => $file->id,
+                'file_name' => $file->name,
+                'mime_type' => $file->mime_type,
+                'is_folder' => false,
+                'action'    => $action,
+            ]);
+        } catch (\Exception $e) {
+            \Log::warning('Activity log failed (download): ' . $e->getMessage());
+        }
+
         $content = Storage::disk('public')->get($file->storage_path);
 
         return response()->stream(function() use ($content, $file, $aesKey) {
@@ -149,6 +205,7 @@ class FileController extends Controller
                 'encrypted_data' => base64_encode($content),
                 'name' => $file->name,
                 'mime_type' => $file->mime_type,
+                'tags' => $file->tags,
             ]);
         }, 200, [
             'Content-Type' => 'application/json',
@@ -196,6 +253,21 @@ public function update(Request $request, string $id): JsonResponse
 
     $file->update($data);
 
+    if (isset($data['name'])) {
+        try {
+            FileActivity::create([
+                'user_id'   => auth()->id(),
+                'file_id'   => $file->id,
+                'file_name' => $file->name,
+                'mime_type' => $file->mime_type,
+                'is_folder' => false,
+                'action'    => 'renamed',
+            ]);
+        } catch (\Exception $e) {
+            \Log::warning('Activity log failed (rename): ' . $e->getMessage());
+        }
+    }
+
     return response()->json([
         'success' => true,
         'data' => $file,
@@ -208,6 +280,19 @@ public function update(Request $request, string $id): JsonResponse
         $file = File::where('id', $id)->where('user_id', auth()->id())->firstOrFail();
         $file->delete();
 
+        try {
+            FileActivity::create([
+                'user_id'   => auth()->id(),
+                'file_id'   => $file->id,
+                'file_name' => $file->name,
+                'mime_type' => $file->mime_type,
+                'is_folder' => false,
+                'action'    => 'trashed',
+            ]);
+        } catch (\Exception $e) {
+            \Log::warning('Activity log failed (trash): ' . $e->getMessage());
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'File moved to trash',
@@ -216,13 +301,30 @@ public function update(Request $request, string $id): JsonResponse
 
     public function starred(): JsonResponse
     {
-        $files = File::where('user_id', auth()->id())
+        $userId = auth()->id();
+        $files = File::where('user_id', $userId)
             ->where('is_starred', true)
-            ->get();
+            ->with('folder')
+            ->get()
+            ->map(function($f) {
+                $arr = $f->toArray();
+                $arr['type'] = 'file';
+                return $arr;
+            });
+
+        $folders = Folder::where('user_id', $userId)
+            ->where('is_starred', true)
+            ->with('parent')
+            ->get()
+            ->map(function($f) {
+                $arr = $f->toArray();
+                $arr['type'] = 'folder';
+                return $arr;
+            });
 
         return response()->json([
             'success' => true,
-            'data' => $files,
+            'data' => $folders->concat($files)->values(),
         ]);
     }
 
@@ -265,6 +367,20 @@ public function update(Request $request, string $id): JsonResponse
     public function forceDelete(string $id): JsonResponse
     {
         $file = File::onlyTrashed()->where('id', $id)->where('user_id', auth()->id())->firstOrFail();
+
+        try {
+            FileActivity::create([
+                'user_id'   => auth()->id(),
+                'file_id'   => null,
+                'file_name' => $file->name,
+                'mime_type' => $file->mime_type,
+                'is_folder' => false,
+                'action'    => 'deleted',
+            ]);
+        } catch (\Exception $e) {
+            \Log::warning('Activity log failed (force delete): ' . $e->getMessage());
+        }
+
         Storage::disk('public')->delete($file->storage_path);
         $file->forceDelete();
 
@@ -321,6 +437,31 @@ public function update(Request $request, string $id): JsonResponse
         return response()->json([
             'success' => true,
             'data'    => $file->fresh()->load('tags'),
+        ]);
+    }
+
+    public function getKey(string $id): JsonResponse
+    {
+        $userId = auth()->id();
+        $file = File::where('id', $id)
+            ->where(function($q) use ($userId) {
+                $q->where('user_id', $userId)
+                  ->orWhereHas('shares', fn($s) => $s->where('receiver_id', $userId));
+            })
+            ->firstOrFail();
+
+        $aesKey = $file->aes_key_encrypted;
+        if ($file->user_id !== $userId) {
+            $share = $file->shares()->where('receiver_id', $userId)->first();
+            if (!$share) {
+                return response()->json(['message' => 'Unauthorized access to key'], 403);
+            }
+            $aesKey = $share->aes_key_encrypted_for_receiver;
+        }
+
+        return response()->json([
+            'success' => true,
+            'aes_key_encrypted' => $aesKey,
         ]);
     }
 
