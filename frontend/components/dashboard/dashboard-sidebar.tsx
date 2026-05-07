@@ -16,7 +16,7 @@ const menuItems = [
     match: ["/dashboard", "/dashboard/my-files"],
   },
   {
-    label: "Shared with Me",
+    label: "Sharing",
     href: "/dashboard/shared",
     icon: Users,
   },
