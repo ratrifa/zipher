@@ -26,36 +26,111 @@ export default function UsersPage() {
   const [error, setError] = useState<string | null>(null)
   const [searchActive, setSearchActive] = useState("")
   const [searchBanned, setSearchBanned] = useState("")
+  const [submittingUserIds, setSubmittingUserIds] = useState<string[]>([])
 
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const token = localStorage.getItem("zipher_token")
-        if (!token) {
-          router.push("/")
-          return
-        }
+  const withSubmittingUser = async (
+    id: string,
+    action: () => Promise<void>
+  ) => {
+    setSubmittingUserIds((prev) => [...prev, id])
+    try {
+      await action()
+    } finally {
+      setSubmittingUserIds((prev) => prev.filter((item) => item !== id))
+    }
+  }
 
-        const response = await fetch(`${API_BASE}/api/v1/admin/users?per_page=100`, {
+  const getAuthToken = () => {
+    const token = localStorage.getItem("zipher_token")
+    if (!token) {
+      router.push("/")
+      return null
+    }
+    return token
+  }
+
+  const fetchUsers = async () => {
+    const token = getAuthToken()
+    if (!token) return
+
+    const response = await fetch(
+      `${API_BASE}/api/v1/admin/users?per_page=100`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      }
+    )
+
+    if (!response.ok) {
+      if (response.status === 403) {
+        router.push("/dashboard")
+        return
+      }
+      throw new Error("Gagal mengambil data users")
+    }
+
+    const data = await response.json()
+    const users = data.data.data || []
+    setActiveUsers(users.filter((u: User) => !u.is_banned))
+    setBannedUsers(users.filter((u: User) => u.is_banned))
+  }
+
+  const banUser = async (userId: string) => {
+    const token = getAuthToken()
+    if (!token) return
+
+    await withSubmittingUser(userId, async () => {
+      const response = await fetch(
+        `${API_BASE}/api/v1/admin/users/${userId}/ban`,
+        {
+          method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
             Accept: "application/json",
           },
-        })
-
-        if (!response.ok) {
-          if (response.status === 403) {
-            router.push("/dashboard")
-            return
-          }
-          throw new Error("Gagal mengambil data users")
         }
+      )
 
-        const data = await response.json()
-        const users = data.data.data || []
-        
-        setActiveUsers(users.filter((u: User) => !u.is_banned))
-        setBannedUsers(users.filter((u: User) => u.is_banned))
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload.message || "Gagal ban user")
+      }
+
+      await fetchUsers()
+    })
+  }
+
+  const unbanUser = async (userId: string) => {
+    const token = getAuthToken()
+    if (!token) return
+
+    await withSubmittingUser(userId, async () => {
+      const response = await fetch(
+        `${API_BASE}/api/v1/admin/users/${userId}/unban`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      )
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload.message || "Gagal unban user")
+      }
+
+      await fetchUsers()
+    })
+  }
+
+  useEffect(() => {
+    const boot = async () => {
+      try {
+        await fetchUsers()
         setError(null)
       } catch (err) {
         setError(err instanceof Error ? err.message : "Terjadi kesalahan")
@@ -64,7 +139,7 @@ export default function UsersPage() {
       }
     }
 
-    fetchUsers()
+    boot()
   }, [router])
   if (loading) {
     return (
@@ -93,7 +168,9 @@ export default function UsersPage() {
     <div className="space-y-6 py-6">
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold tracking-tight">Users</h1>
-        <p className="text-sm text-muted-foreground">Kelola user aktif dan user yang diblokir.</p>
+        <p className="text-sm text-muted-foreground">
+          Kelola user aktif dan user yang diblokir.
+        </p>
       </div>
 
       {error && (
@@ -120,19 +197,22 @@ export default function UsersPage() {
             <table className="w-full min-w-190 border-collapse text-center text-xs">
               <thead>
                 <tr className="border-b border-border/80 bg-muted/40 text-muted-foreground uppercase">
-                  <th className="py-3 px-2 font-bold w-10">No</th>
-                  <th className="py-3 px-2 font-bold text-left">Name</th>
-                  <th className="py-3 px-2 font-bold text-left">E-Mail</th>
-                  <th className="py-3 px-2 font-bold">Joined</th>
-                  <th className="py-3 px-2 font-bold">Reports</th>
-                  <th className="py-3 px-2 font-bold">Files</th>
-                  <th className="py-3 px-2 font-bold w-12">Action</th>
+                  <th className="w-10 px-2 py-3 font-bold">No</th>
+                  <th className="px-2 py-3 text-left font-bold">Name</th>
+                  <th className="px-2 py-3 text-left font-bold">E-Mail</th>
+                  <th className="px-2 py-3 font-bold">Joined</th>
+                  <th className="px-2 py-3 font-bold">Reports</th>
+                  <th className="px-2 py-3 font-bold">Files</th>
+                  <th className="w-12 px-2 py-3 font-bold">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredActiveUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-muted-foreground">
+                    <td
+                      colSpan={7}
+                      className="py-8 text-center text-muted-foreground"
+                    >
                       Tidak ada user aktif
                     </td>
                   </tr>
@@ -140,13 +220,21 @@ export default function UsersPage() {
                   filteredActiveUsers.map((user, idx) => (
                     <tr
                       key={user.id}
-                      className="border-b border-border/70 bg-card transition-colors hover:bg-muted/30 last:border-b-0"
+                      className="border-b border-border/70 bg-card transition-colors last:border-b-0 hover:bg-muted/30"
                     >
-                      <td className="py-2.5 px-2 text-muted-foreground">{idx + 1}</td>
-                      <td className="py-2.5 px-2 text-left">
+                      <td className="px-2 py-2.5 text-muted-foreground">
+                        {idx + 1}
+                      </td>
+                      <td className="px-2 py-2.5 text-left">
                         <div className="flex items-center gap-2.5">
                           <Avatar className="size-7 border border-border">
-                            <AvatarImage src={user.avatar ? `${API_BASE}/storage/${user.avatar}` : undefined} />
+                            <AvatarImage
+                              src={
+                                user.avatar
+                                  ? `${API_BASE}/storage/${user.avatar}`
+                                  : undefined
+                              }
+                            />
                             <AvatarFallback className="text-[9px]">
                               {user.username.slice(0, 2).toUpperCase()}
                             </AvatarFallback>
@@ -156,26 +244,49 @@ export default function UsersPage() {
                           </span>
                         </div>
                       </td>
-                      <td className="py-2.5 px-2 text-left text-[11px] text-muted-foreground">{user.email}</td>
-                      <td className="py-2.5 px-2 text-[11px] text-muted-foreground">
+                      <td className="px-2 py-2.5 text-left text-[11px] text-muted-foreground">
+                        {user.email}
+                      </td>
+                      <td className="px-2 py-2.5 text-[11px] text-muted-foreground">
                         {new Date(user.created_at).toLocaleDateString("id-ID")}
                       </td>
-                      <td className="py-2.5 px-2 text-[11px] font-semibold">
+                      <td className="px-2 py-2.5 text-[11px] font-semibold">
                         {user.report_count ? (
-                          <span className={user.report_count > 1 ? "text-destructive" : "text-amber-700 dark:text-amber-300"}>
+                          <span
+                            className={
+                              user.report_count > 1
+                                ? "text-destructive"
+                                : "text-amber-700 dark:text-amber-300"
+                            }
+                          >
                             {user.report_count}
                           </span>
                         ) : (
                           <span className="text-muted-foreground">0</span>
                         )}
                       </td>
-                      <td className="py-2.5 px-2 text-[11px] text-muted-foreground">{user.file_count || 0}</td>
-                      <td className="py-2.5 px-2 flex justify-center">
+                      <td className="px-2 py-2.5 text-[11px] text-muted-foreground">
+                        {user.file_count || 0}
+                      </td>
+                      <td className="flex justify-center px-2 py-2.5">
                         <Button
                           type="button"
                           variant="outline"
                           size="xs"
                           className="my-1 h-7 rounded-full border-destructive/30 px-3 text-[10px] font-bold text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          disabled={submittingUserIds.includes(user.id)}
+                          onClick={async () => {
+                            try {
+                              await banUser(user.id)
+                              setError(null)
+                            } catch (err) {
+                              setError(
+                                err instanceof Error
+                                  ? err.message
+                                  : "Terjadi kesalahan"
+                              )
+                            }
+                          }}
                         >
                           Ban
                         </Button>
@@ -205,18 +316,21 @@ export default function UsersPage() {
             <table className="w-full min-w-155 border-collapse text-center text-xs">
               <thead>
                 <tr className="border-b border-border/80 bg-muted/40 text-muted-foreground uppercase">
-                  <th className="py-3 px-2 font-bold w-8">No</th>
-                  <th className="py-3 px-2 font-bold text-left">Name</th>
-                  <th className="py-3 px-2 font-bold text-left">E-Mail</th>
-                  <th className="py-3 px-2 font-bold">Status</th>
-                  <th className="py-3 px-2 font-bold">Reports</th>
-                  <th className="py-3 px-2 font-bold w-12">Action</th>
+                  <th className="w-8 px-2 py-3 font-bold">No</th>
+                  <th className="px-2 py-3 text-left font-bold">Name</th>
+                  <th className="px-2 py-3 text-left font-bold">E-Mail</th>
+                  <th className="px-2 py-3 font-bold">Status</th>
+                  <th className="px-2 py-3 font-bold">Reports</th>
+                  <th className="w-12 px-2 py-3 font-bold">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredBannedUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-muted-foreground">
+                    <td
+                      colSpan={6}
+                      className="py-8 text-center text-muted-foreground"
+                    >
                       Tidak ada user yang diblokir
                     </td>
                   </tr>
@@ -224,13 +338,21 @@ export default function UsersPage() {
                   filteredBannedUsers.map((user, idx) => (
                     <tr
                       key={`banned-${user.id}`}
-                      className="border-b border-border/70 bg-card transition-colors hover:bg-muted/30 last:border-b-0"
+                      className="border-b border-border/70 bg-card transition-colors last:border-b-0 hover:bg-muted/30"
                     >
-                      <td className="py-2.5 px-2 text-muted-foreground">{idx + 1}</td>
-                      <td className="py-2.5 px-2 text-left">
+                      <td className="px-2 py-2.5 text-muted-foreground">
+                        {idx + 1}
+                      </td>
+                      <td className="px-2 py-2.5 text-left">
                         <div className="flex items-center gap-2.5">
                           <Avatar className="size-7 border border-border">
-                            <AvatarImage src={user.avatar ? `${API_BASE}/storage/${user.avatar}` : undefined} />
+                            <AvatarImage
+                              src={
+                                user.avatar
+                                  ? `${API_BASE}/storage/${user.avatar}`
+                                  : undefined
+                              }
+                            />
                             <AvatarFallback className="text-[9px]">
                               {user.username.slice(0, 2).toUpperCase()}
                             </AvatarFallback>
@@ -240,21 +362,36 @@ export default function UsersPage() {
                           </span>
                         </div>
                       </td>
-                      <td className="py-2.5 px-2 text-[11px] text-muted-foreground">{user.email}</td>
-                      <td className="py-2.5 px-2">
+                      <td className="px-2 py-2.5 text-[11px] text-muted-foreground">
+                        {user.email}
+                      </td>
+                      <td className="px-2 py-2.5">
                         <span className="rounded-sm bg-destructive/15 px-2 py-1 text-[10px] font-semibold tracking-wide text-destructive uppercase">
                           Banned
                         </span>
                       </td>
-                      <td className="py-2.5 px-2 text-[11px] font-semibold text-destructive">
+                      <td className="px-2 py-2.5 text-[11px] font-semibold text-destructive">
                         {user.report_count || 0}
                       </td>
-                      <td className="py-2.5 px-2 flex justify-center">
+                      <td className="flex justify-center px-2 py-2.5">
                         <Button
                           type="button"
                           variant="outline"
                           size="xs"
                           className="my-1 h-7 rounded-full border-emerald-500/30 px-3 text-[10px] font-bold text-emerald-700 hover:bg-emerald-500/10 hover:text-emerald-700 dark:text-emerald-300 dark:hover:text-emerald-300"
+                          disabled={submittingUserIds.includes(user.id)}
+                          onClick={async () => {
+                            try {
+                              await unbanUser(user.id)
+                              setError(null)
+                            } catch (err) {
+                              setError(
+                                err instanceof Error
+                                  ? err.message
+                                  : "Terjadi kesalahan"
+                              )
+                            }
+                          }}
                         >
                           Unban
                         </Button>

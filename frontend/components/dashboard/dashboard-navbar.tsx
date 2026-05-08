@@ -64,6 +64,14 @@ export function DashboardNavbar() {
   const [user, setUser] = useState<any>(null)
   const [submittingLogout, setSubmittingLogout] = useState(false)
 
+  const clearAuthState = () => {
+    localStorage.removeItem("zipher_token")
+    localStorage.removeItem("zipher.auth.token")
+    localStorage.removeItem("zipher_user")
+    window.dispatchEvent(new Event("storage"))
+    window.dispatchEvent(new Event("user-updated"))
+  }
+
   useEffect(() => {
     const userStr = localStorage.getItem("zipher_user")
     if (userStr) {
@@ -90,8 +98,7 @@ export function DashboardNavbar() {
     try {
       setSubmittingLogout(true)
       await clearPrivateKey()
-      localStorage.removeItem("zipher_token")
-      localStorage.removeItem("zipher_user")
+      clearAuthState()
       const cacheKeys = [
         "zipher_cache_recent",
         "zipher_cache_trash",
@@ -103,7 +110,8 @@ export function DashboardNavbar() {
       Object.keys(localStorage)
         .filter((k) => k.startsWith("zipher_cache_contents_"))
         .forEach((k) => localStorage.removeItem(k))
-      router.push("/")
+      router.replace("/")
+      router.refresh()
     } finally {
       setSubmittingLogout(false)
     }
@@ -112,7 +120,9 @@ export function DashboardNavbar() {
   const avatarUrl = user?.avatar ? `${API_BASE}/storage/${user.avatar}` : null
   const initials = user?.username
     ? user.username.slice(0, 2).toUpperCase()
-    : "ZA"
+    : user?.email
+      ? user.email.slice(0, 2).toUpperCase()
+      : "U"
 
   return (
     <header className="border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80">
@@ -135,6 +145,12 @@ export function DashboardNavbar() {
         </Suspense>
 
         <div className="ml-auto flex items-center gap-2">
+          {user?.role === "admin" && (
+            <Button asChild variant="outline" className="hidden rounded-full md:inline-flex">
+              <Link href="/admin">Super Admin</Link>
+            </Button>
+          )}
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -151,9 +167,7 @@ export function DashboardNavbar() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuLabel>
-                {user?.username ?? "Akun"}
-              </DropdownMenuLabel>
+              <DropdownMenuLabel>{user?.username ?? "Akun"}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
                 <Link href="/profile">
@@ -170,7 +184,10 @@ export function DashboardNavbar() {
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-destructive"
-                onClick={handleLogout}
+                onSelect={(event) => {
+                  event.preventDefault()
+                  void handleLogout()
+                }}
               >
                 <LogOut className="size-4" />
                 Keluar

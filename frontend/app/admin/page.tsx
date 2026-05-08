@@ -86,7 +86,9 @@ function OverviewCard({ item }: { item: OverviewCardItem }) {
           <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
             {item.label}
           </p>
-          <p className="mt-2 text-2xl font-semibold tracking-tight">{item.value}</p>
+          <p className="mt-2 text-2xl font-semibold tracking-tight">
+            {item.value}
+          </p>
           {item.helper ? (
             <p className="mt-1 text-xs text-muted-foreground">{item.helper}</p>
           ) : null}
@@ -253,7 +255,9 @@ export default function AdminDashboardPage() {
   return (
     <div className="relative space-y-8 py-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Selamat Datang Super Admin</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Selamat Datang Super Admin
+        </h1>
         <p className="text-sm text-muted-foreground">Dashboard overview</p>
       </div>
 
@@ -284,7 +288,10 @@ export default function AdminDashboardPage() {
 
       {activeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <div className="absolute inset-0" onClick={() => setActiveModal(null)} />
+          <div
+            className="absolute inset-0"
+            onClick={() => setActiveModal(null)}
+          />
 
           {activeModal === "reports" && (
             <div className="relative z-10 w-full max-w-xl rounded-2xl border bg-card p-6 text-card-foreground shadow-xl">
@@ -298,13 +305,19 @@ export default function AdminDashboardPage() {
               </Button>
 
               <div className="mb-6 pr-10">
-                <h2 className="text-xl font-semibold tracking-tight">Recent Reports</h2>
-                <p className="text-sm text-muted-foreground">Laporan terbaru yang menunggu review admin.</p>
+                <h2 className="text-xl font-semibold tracking-tight">
+                  Recent Reports
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Laporan terbaru yang menunggu review admin.
+                </p>
               </div>
 
               <div className="max-h-96 space-y-3 overflow-y-auto">
                 {reports.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Tidak ada laporan pending</p>
+                  <p className="text-sm text-muted-foreground">
+                    Tidak ada laporan pending
+                  </p>
                 ) : (
                   reports.map((item) => (
                     <div
@@ -312,7 +325,9 @@ export default function AdminDashboardPage() {
                       className="flex items-center justify-between gap-3 rounded-xl border bg-muted/35 p-4"
                     >
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold">{item.file_name}</p>
+                        <p className="truncate text-sm font-semibold">
+                          {item.file_name}
+                        </p>
                         <p className="mt-1 text-xs text-muted-foreground">
                           Reported by {item.reporter_username}
                         </p>
@@ -320,7 +335,11 @@ export default function AdminDashboardPage() {
                           {item.reason}
                         </span>
                       </div>
-                      <Button size="sm" className="h-8 shrink-0 rounded-full px-4">
+                      <Button
+                        size="sm"
+                        className="h-8 shrink-0 rounded-full px-4"
+                        onClick={() => router.push("/admin/reports")}
+                      >
                         Review
                       </Button>
                     </div>
@@ -342,12 +361,18 @@ export default function AdminDashboardPage() {
               </Button>
 
               <div className="mb-6 pr-10">
-                <h2 className="text-xl font-semibold tracking-tight">Recent Activity</h2>
-                <p className="text-sm text-muted-foreground">Ringkasan aktivitas terakhir pengguna.</p>
+                <h2 className="text-xl font-semibold tracking-tight">
+                  Recent Activity
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Ringkasan aktivitas terakhir pengguna.
+                </p>
               </div>
 
               <div className="max-h-96 space-y-3 overflow-y-auto">
-                <p className="text-sm text-muted-foreground">Activity feed coming soon...</p>
+                <p className="text-sm text-muted-foreground">
+                  Activity feed coming soon...
+                </p>
               </div>
             </div>
           )}

@@ -92,6 +92,7 @@ Route::prefix('v1')->group(function () {
             Route::get('admin/users', [AdminController::class, 'users']);
             Route::post('admin/users/{id}/ban', [AdminController::class, 'banUser']);
             Route::post('admin/users/{id}/unban', [AdminController::class, 'unbanUser']);
+            Route::delete('admin/files/{id}', [AdminController::class, 'deleteFile']);
             Route::get('admin/activity', [AdminController::class, 'activity']);
         });
     });

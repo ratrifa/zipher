@@ -9,7 +9,11 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-export function getIcon(mimeType: string, isFolder: boolean, fileName: string = ""): LucideIcon {
+export function getIcon(
+  mimeType: string,
+  isFolder: boolean,
+  fileName: string = ""
+): LucideIcon {
   if (isFolder) return Folder
 
   const lowerName = fileName.toLowerCase()
@@ -44,7 +48,11 @@ export function getIcon(mimeType: string, isFolder: boolean, fileName: string = 
   return FileIcon
 }
 
-export function getIconClassName(mimeType: string, isFolder: boolean, fileName: string = ""): string {
+export function getIconClassName(
+  mimeType: string,
+  isFolder: boolean,
+  fileName: string = ""
+): string {
   if (isFolder) return "bg-blue-100 text-blue-700"
 
   const lowerName = fileName.toLowerCase()

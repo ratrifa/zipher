@@ -1,4 +1,5 @@
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+export const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 
 // Auth Types
 export type AuthUser = {
@@ -50,7 +51,9 @@ export async function loginUser(payload: LoginPayload): Promise<AuthSession> {
   return { user: json.data.user, token: json.data.token }
 }
 
-export async function registerUser(payload: RegisterPayload): Promise<AuthSession> {
+export async function registerUser(
+  payload: RegisterPayload
+): Promise<AuthSession> {
   const res = await fetch(`${API_BASE}/api/v1/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -85,7 +88,10 @@ export async function checkResetEmail(email: string): Promise<void> {
   if (!res.ok) throw new Error(json.message || "Email tidak ditemukan.")
 }
 
-export async function verifyResetKey(email: string, privateKey: string): Promise<void> {
+export async function verifyResetKey(
+  email: string,
+  privateKey: string
+): Promise<void> {
   const res = await fetch(`${API_BASE}/api/v1/verify-reset-key`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },

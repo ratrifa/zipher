@@ -46,7 +46,7 @@ class AdminController extends Controller
 
     public function recentReports(): JsonResponse
     {
-        $reports = Report::with(['reporter:id,username,email', 'file:id,name,user_id'])
+        $reports = Report::with(['reporter:id,username,email', 'file:id,name,user_id', 'file.user:id,username'])
             ->where('status', 'pending')
             ->orderBy('created_at', 'desc')
             ->limit(20)
@@ -145,7 +145,23 @@ class AdminController extends Controller
     public function banUser(string $id): JsonResponse
     {
         $user = User::findOrFail($id);
-        $user->update(['is_banned' => true]);
+
+        if ($user->id === auth()->id()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Admin tidak dapat mem-banned dirinya sendiri.',
+            ], 422);
+        }
+
+        if ($user->is_banned) {
+            return response()->json([
+                'success' => true,
+                'message' => 'User sudah dalam status banned.',
+                'data' => ['id' => $user->id, 'is_banned' => true],
+            ]);
+        }
+
+        $user->forceFill(['is_banned' => true])->save();
 
         ActivityLog::create([
             'user_id' => auth()->id(),
@@ -159,13 +175,23 @@ class AdminController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'User banned successfully',
+            'data' => ['id' => $user->id, 'is_banned' => true],
         ]);
     }
 
     public function unbanUser(string $id): JsonResponse
     {
         $user = User::findOrFail($id);
-        $user->update(['is_banned' => false]);
+
+        if (! $user->is_banned) {
+            return response()->json([
+                'success' => true,
+                'message' => 'User sudah dalam status aktif.',
+                'data' => ['id' => $user->id, 'is_banned' => false],
+            ]);
+        }
+
+        $user->forceFill(['is_banned' => false])->save();
 
         ActivityLog::create([
             'user_id' => auth()->id(),
@@ -179,6 +205,31 @@ class AdminController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'User unbanned successfully',
+            'data' => ['id' => $user->id, 'is_banned' => false],
+        ]);
+    }
+
+    public function deleteFile(string $id): JsonResponse
+    {
+        $file = File::query()->findOrFail($id);
+
+        if ($file->trashed()) {
+            $file->forceDelete();
+        } else {
+            $file->delete();
+        }
+
+        ActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'admin_deleted_file',
+            'metadata' => [
+                'file_id' => $id,
+            ],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'File berhasil dihapus oleh admin.',
         ]);
     }
 }

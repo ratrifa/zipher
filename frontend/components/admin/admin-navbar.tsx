@@ -1,6 +1,8 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { useState } from "react"
 import { FolderOpen, Search, ChevronDown, LogOut, Shield } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -14,8 +16,42 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
+import { clearPrivateKey } from "@/lib/crypto"
 
 export function AdminNavbar() {
+  const router = useRouter()
+  const [submittingLogout, setSubmittingLogout] = useState(false)
+
+  const clearAuthState = () => {
+    localStorage.removeItem("zipher_token")
+    localStorage.removeItem("zipher.auth.token")
+    localStorage.removeItem("zipher_user")
+    window.dispatchEvent(new Event("storage"))
+    window.dispatchEvent(new Event("user-updated"))
+  }
+
+  const handleLogout = async () => {
+    try {
+      setSubmittingLogout(true)
+      await clearPrivateKey()
+      clearAuthState()
+      const cacheKeys = [
+        "zipher_cache_recent",
+        "zipher_cache_trash",
+        "zipher_cache_starred",
+        "zipher_cache_sharing",
+      ]
+      cacheKeys.forEach((k) => localStorage.removeItem(k))
+      Object.keys(localStorage)
+        .filter((k) => k.startsWith("zipher_cache_contents_"))
+        .forEach((k) => localStorage.removeItem(k))
+      router.replace("/")
+      router.refresh()
+    } finally {
+      setSubmittingLogout(false)
+    }
+  }
+
   return (
     <header className="border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80">
       <div className="flex h-18 items-center gap-4 px-4 md:px-6">
@@ -46,6 +82,7 @@ export function AdminNavbar() {
                 variant="ghost"
                 className="h-12 overflow-hidden rounded-full px-2 py-0"
                 aria-label="Menu admin"
+                disabled={submittingLogout}
               >
                 <Avatar size="default" className="size-10">
                   <AvatarFallback>SA</AvatarFallback>
@@ -60,7 +97,13 @@ export function AdminNavbar() {
                 <Shield className="size-4" />
                 Super Admin
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-destructive"
+                onSelect={(event) => {
+                  event.preventDefault()
+                  void handleLogout()
+                }}
+              >
                 <LogOut className="size-4" />
                 Logout
               </DropdownMenuItem>

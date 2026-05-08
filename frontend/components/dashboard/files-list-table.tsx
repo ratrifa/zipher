@@ -343,7 +343,7 @@ export function FilesListTable({
                                   variant="ghost"
                                   size="icon"
                                   disabled={!!file.isReported}
-                                  className={`size-8 rounded-full transition-opacity group-hover:opacity-100 ${file.isReported ? "opacity-40 text-muted-foreground cursor-not-allowed" : "opacity-0 text-destructive hover:text-destructive"}`}
+                                  className={`size-8 rounded-full transition-opacity group-hover:opacity-100 ${file.isReported ? "cursor-not-allowed text-muted-foreground opacity-40" : "text-destructive opacity-0 hover:text-destructive"}`}
                                   aria-label="Lapor file"
                                   onClick={(e) => {
                                     e.stopPropagation()
@@ -353,7 +353,9 @@ export function FilesListTable({
                                   <Flag className="size-4" />
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent>{file.isReported ? "Sudah dilaporkan" : "Lapor"}</TooltipContent>
+                              <TooltipContent>
+                                {file.isReported ? "Sudah dilaporkan" : "Lapor"}
+                              </TooltipContent>
                             </Tooltip>
                           )}
                         </TooltipProvider>
@@ -496,7 +498,9 @@ export function FilesListTable({
                                     if (!file.isReported) onReport?.(file.id)
                                   }}
                                 >
-                                  {file.isReported ? "Sudah Dilaporkan" : "Lapor"}
+                                  {file.isReported
+                                    ? "Sudah Dilaporkan"
+                                    : "Lapor"}
                                 </DropdownMenuItem>
                               )}
                             </>
