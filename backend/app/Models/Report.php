@@ -9,14 +9,16 @@ class Report extends Model
 {
     use HasUuids;
 
-    public $timestamps = false;
-
     protected $fillable = [
         'id',
         'share_id',
         'file_id',
         'reporter_id',
         'reason',
+        'details',
+        'status',
+        'reviewed_by',
+        'reviewed_at',
     ];
 
     public function share()
@@ -32,5 +34,10 @@ class Report extends Model
     public function reporter()
     {
         return $this->belongsTo(User::class, 'reporter_id');
+    }
+
+    public function reviewedBy()
+    {
+        return $this->belongsTo(User::class, 'reviewed_by');
     }
 }

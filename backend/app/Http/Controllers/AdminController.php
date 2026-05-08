@@ -16,16 +16,30 @@ class AdminController extends Controller
 {
     public function dashboard(): JsonResponse
     {
+        $mostReportedUser = User::query()
+            ->select('users.id', 'users.username')
+            ->join('reports', 'reports.reporter_id', '=', 'users.id')
+            ->groupBy('users.id', 'users.username')
+            ->orderByRaw('COUNT(reports.id) DESC')
+            ->selectRaw('COUNT(reports.id) as report_count')
+            ->first();
+
         return response()->json([
             'success' => true,
             'data' => [
                 'total_users' => User::count(),
                 'total_files' => File::count(),
                 'total_folders' => Folder::count(),
+                'banned_users' => User::where('is_banned', true)->count(),
                 'total_reports' => Report::count(),
                 'pending_reports' => Report::where('status', 'pending')->count(),
                 'total_activity_logs' => ActivityLog::count(),
                 'total_storage_used' => File::sum('size'),
+                'most_reported_user' => $mostReportedUser ? [
+                    'id' => $mostReportedUser->id,
+                    'username' => $mostReportedUser->username,
+                    'report_count' => (int) $mostReportedUser->report_count,
+                ] : null,
             ],
         ]);
     }

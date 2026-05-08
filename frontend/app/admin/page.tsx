@@ -169,7 +169,14 @@ export default function AdminDashboardPage() {
         }
 
         const dashData = await dashRes.json()
-        setStats(dashData.data)
+        const dashboardStats = dashData?.data ?? {}
+        setStats({
+          total_users: dashboardStats.total_users ?? 0,
+          total_files: dashboardStats.total_files ?? 0,
+          banned_users: dashboardStats.banned_users ?? 0,
+          pending_reports: dashboardStats.pending_reports ?? 0,
+          most_reported_user: dashboardStats.most_reported_user,
+        })
 
         const reportsRes = await fetch(`${API_BASE}/api/v1/admin/reports`, {
           headers: {
@@ -197,25 +204,25 @@ export default function AdminDashboardPage() {
   const cards: OverviewCardItem[] = [
     {
       label: "Users",
-      value: stats.total_users.toLocaleString(),
+      value: (stats.total_users ?? 0).toLocaleString(),
       icon: Users,
       iconClassName: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300",
     },
     {
       label: "All Files",
-      value: stats.total_files.toLocaleString(),
+      value: (stats.total_files ?? 0).toLocaleString(),
       icon: Inbox,
       iconClassName: "bg-sky-500/15 text-sky-600 dark:text-sky-300",
     },
     {
       label: "Banned Users",
-      value: stats.banned_users.toString(),
+      value: (stats.banned_users ?? 0).toString(),
       icon: TriangleAlert,
       iconClassName: "bg-destructive/15 text-destructive",
     },
     {
       label: "Reports Pending",
-      value: stats.pending_reports.toString(),
+      value: (stats.pending_reports ?? 0).toString(),
       icon: Siren,
       iconClassName: "bg-amber-500/15 text-amber-600 dark:text-amber-300",
     },

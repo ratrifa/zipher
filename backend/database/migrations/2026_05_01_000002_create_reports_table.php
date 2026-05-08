@@ -10,6 +10,7 @@ return new class extends Migration
     {
         Schema::create('reports', function (Blueprint $table) {
             $table->uuid('id')->primary();
+            $table->foreignUuid('share_id')->constrained('shared_files')->cascadeOnDelete();
             $table->foreignUuid('reporter_id')->constrained('users');
             $table->foreignUuid('file_id')->constrained('files');
             $table->string('reason');
@@ -17,6 +18,8 @@ return new class extends Migration
             $table->string('status')->default('pending');
             $table->foreignUuid('reviewed_by')->nullable()->constrained('users');
             $table->timestamp('reviewed_at')->nullable();
+            $table->index('share_id');
+            $table->index('reporter_id');
             $table->timestamps();
         });
     }
