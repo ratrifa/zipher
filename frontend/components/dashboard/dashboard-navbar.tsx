@@ -11,6 +11,8 @@ import {
   Settings,
   User,
   LogOut,
+  Menu,
+  X,
 } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -25,6 +27,11 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { clearPrivateKey } from "@/lib/crypto"
+
+type DashboardNavbarProps = {
+  sidebarOpen?: boolean
+  onSidebarToggle?: () => void
+}
 
 function SearchInput() {
   const router = useRouter()
@@ -59,7 +66,69 @@ function SearchInput() {
   )
 }
 
-export function DashboardNavbar() {
+function MobileSearchInput() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "")
+  const [isOpen, setIsOpen] = useState(false)
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    const params = new URLSearchParams(searchParams.toString())
+    if (searchQuery.trim()) {
+      params.set("q", searchQuery.trim())
+    } else {
+      params.delete("q")
+    }
+    router.push(`/dashboard?${params.toString()}`)
+    setIsOpen(false)
+  }
+
+  if (!isOpen) {
+    return (
+      <button
+        onClick={() => setIsOpen(true)}
+        className="md:hidden"
+        aria-label="Search"
+      >
+        <Search className="size-5 text-muted-foreground" />
+      </button>
+    )
+  }
+
+  return (
+    <form
+      onSubmit={handleSearch}
+      className="absolute top-full left-0 right-0 z-50 border-b bg-background/95 p-3 backdrop-blur md:hidden"
+    >
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="search"
+            placeholder="Cari file..."
+            className="h-10 rounded-full bg-muted pl-10"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            autoFocus
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsOpen(false)}
+          className="flex items-center justify-center"
+        >
+          <X className="size-5" />
+        </button>
+      </div>
+    </form>
+  )
+}
+
+export function DashboardNavbar({
+  sidebarOpen = false,
+  onSidebarToggle,
+}: DashboardNavbarProps) {
   const router = useRouter()
   const [user, setUser] = useState<any>(null)
   const [submittingLogout, setSubmittingLogout] = useState(false)
@@ -126,12 +195,29 @@ export function DashboardNavbar() {
 
   return (
     <header className="border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80">
-      <div className="flex h-18 items-center gap-4 px-4 md:px-6">
-        <Link href="/dashboard" className="flex items-center gap-2">
+      <div className="flex h-18 items-center gap-3 px-3 sm:gap-4 sm:px-4 md:px-6">
+        {/* Mobile Menu Button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onSidebarToggle}
+          className="md:hidden"
+          aria-label="Toggle menu"
+        >
+          {sidebarOpen ? (
+            <X className="size-5" />
+          ) : (
+            <Menu className="size-5" />
+          )}
+        </Button>
+
+        <Link href="/dashboard" className="flex items-center gap-2 shrink-0">
           <span className="rounded-md bg-primary p-2 text-primary-foreground">
-            <FolderOpen className="size-5" />
+            <FolderOpen className="size-4 sm:size-5" />
           </span>
-          <span className="text-base font-semibold tracking-tight">zipher</span>
+          <span className="hidden text-base font-semibold tracking-tight sm:inline">
+            zipher
+          </span>
         </Link>
 
         <Suspense
@@ -144,9 +230,18 @@ export function DashboardNavbar() {
           <SearchInput />
         </Suspense>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-2 sm:gap-3">
+          {/* Mobile Search Button */}
+          <Suspense fallback={null}>
+            <MobileSearchInput />
+          </Suspense>
+
           {user?.role === "admin" && (
-            <Button asChild variant="outline" className="hidden rounded-full md:inline-flex">
+            <Button
+              asChild
+              variant="outline"
+              className="hidden rounded-full md:inline-flex text-xs sm:text-sm"
+            >
               <Link href="/admin">Super Admin</Link>
             </Button>
           )}
@@ -155,15 +250,15 @@ export function DashboardNavbar() {
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
-                className="h-12 overflow-hidden rounded-full px-2 py-0"
+                className="h-10 sm:h-12 overflow-hidden rounded-full px-2 py-0"
                 aria-label="Menu akun"
                 disabled={submittingLogout}
               >
-                <Avatar size="default" className="size-10">
+                <Avatar size="default" className="size-8 sm:size-10">
                   {avatarUrl && <AvatarImage src={avatarUrl} />}
                   <AvatarFallback>{initials}</AvatarFallback>
                 </Avatar>
-                <ChevronDown className="size-4 text-muted-foreground" />
+                <ChevronDown className="size-3 sm:size-4 text-muted-foreground" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">

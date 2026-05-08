@@ -507,21 +507,20 @@ export function SharingSection() {
 
   return (
     <section>
-      <div className="sticky top-0 z-30 -mx-4 bg-background px-4 pb-4 md:-mx-6 md:px-6">
-        <div className="mb-4 pt-4">
-          <h1 className="text-2xl font-semibold tracking-tight">Sharing</h1>
-          <p className="text-sm text-muted-foreground">
+      <div className="sticky top-0 z-30 -mx-4 bg-background px-4 py-3 md:-mx-6 md:px-6">
+        <div className="mb-3 sm:mb-4">
+          <h1 className="text-base font-semibold tracking-tight sm:text-lg md:text-2xl">Sharing</h1>
+          <p className="text-xs text-muted-foreground sm:text-sm">
             File yang dibagi dan diterima.
           </p>
         </div>
 
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <div className="ml-auto">
-            <FileLayoutSwitch
-              isList={isListView}
-              onCheckedChange={setIsListView}
-            />
-          </div>
+        <div className="flex items-center justify-between">
+          <div />
+          <FileLayoutSwitch
+            isList={isListView}
+            onCheckedChange={setIsListView}
+          />
         </div>
       </div>
 

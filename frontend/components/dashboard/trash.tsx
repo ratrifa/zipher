@@ -271,33 +271,35 @@ export function TrashSection() {
 
   return (
     <section>
-      <div className="sticky top-0 z-30 -mx-4 h-20 bg-background px-4 md:-mx-6 md:px-6">
-        <div className="grid h-full grid-cols-[1fr_auto] items-center gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Trash</h1>
-            <p className="text-sm text-muted-foreground">
-              File dan folder yang dihapus.
-            </p>
-          </div>
+      <div className="sticky top-0 z-30 -mx-4 bg-background px-4 py-3 sm:py-4 md:-mx-6 md:px-6">
+        <div className="mb-3 sm:mb-4">
+          <h1 className="text-base font-semibold tracking-tight sm:text-lg md:text-2xl">Trash</h1>
+          <p className="text-xs text-muted-foreground sm:text-sm">
+            File dan folder yang dihapus.
+          </p>
+        </div>
 
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={items.length === 0 || isLoading}
-              onClick={() => setIsBulkRestoreConfirmOpen(true)}
-            >
-              Pulihkan Semua
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              disabled={items.length === 0 || isLoading}
-              onClick={() => setIsBulkDeleteConfirmOpen(true)}
-            >
-              Hapus Semua
-            </Button>
-            <div className="mx-1 h-6 w-px bg-border" />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={items.length === 0 || isLoading}
+            onClick={() => setIsBulkRestoreConfirmOpen(true)}
+            className="text-xs sm:text-sm"
+          >
+            Pulihkan Semua
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            disabled={items.length === 0 || isLoading}
+            onClick={() => setIsBulkDeleteConfirmOpen(true)}
+            className="text-xs sm:text-sm"
+          >
+            Hapus Semua
+          </Button>
+          <div className="mx-1 hidden h-6 w-px bg-border sm:block" />
+          <div className="ml-auto">
             <FileLayoutSwitch
               isList={isListView}
               onCheckedChange={setIsListView}

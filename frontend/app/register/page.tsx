@@ -140,26 +140,26 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="flex min-h-svh flex-col items-center justify-center gap-4 bg-muted/30 p-6">
+    <main className="flex min-h-svh flex-col items-center justify-center gap-2 bg-muted/30 p-4 sm:gap-4 sm:p-6">
       <div className="w-full max-w-sm text-center">
-        <h1 className="text-2xl font-semibold tracking-tight">zipher.</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">zipher.</h1>
         <br />
       </div>
 
-      <Card className="w-full max-w-sm py-6">
+      <Card className="w-full max-w-sm py-4 sm:py-6">
         <CardHeader>
-          <CardTitle className="text-center text-xl">Register</CardTitle>
+          <CardTitle className="text-center text-lg sm:text-xl">Register</CardTitle>
         </CardHeader>
 
         <CardContent>
-          <form className="space-y-4" onSubmit={handleSubmit}>
+          <form className="space-y-3 sm:space-y-4" onSubmit={handleSubmit}>
             {error && (
-              <p className="text-center text-sm font-medium text-destructive">
+              <p className="text-center text-xs font-medium text-destructive sm:text-sm">
                 {error}
               </p>
             )}
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+            <div className="space-y-1 sm:space-y-2">
+              <Label htmlFor="email" className="text-xs sm:text-sm">Email</Label>
               <Input
                 id="email"
                 name="email"
@@ -167,11 +167,12 @@ export default function RegisterPage() {
                 placeholder="nama@email.com"
                 autoComplete="email"
                 required
+                className="text-xs sm:text-sm"
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+            <div className="space-y-1 sm:space-y-2">
+              <Label htmlFor="username" className="text-xs sm:text-sm">Username</Label>
               <Input
                 id="username"
                 name="username"
@@ -179,11 +180,12 @@ export default function RegisterPage() {
                 placeholder="Masukkan username"
                 autoComplete="username"
                 required
+                className="text-xs sm:text-sm"
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+            <div className="space-y-1 sm:space-y-2">
+              <Label htmlFor="password" className="text-xs sm:text-sm">Password</Label>
               <div className="relative">
                 <Input
                   id="password"
@@ -192,7 +194,7 @@ export default function RegisterPage() {
                   placeholder="Masukkan password"
                   autoComplete="new-password"
                   required
-                  className="pr-10"
+                  className="pr-10 text-xs sm:text-sm"
                 />
                 <button type="button" tabIndex={-1} onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                   {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
@@ -200,8 +202,8 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
+            <div className="space-y-1 sm:space-y-2">
+              <Label htmlFor="confirmPassword" className="text-xs sm:text-sm">Confirm Password</Label>
               <div className="relative">
                 <Input
                   id="confirmPassword"
@@ -210,7 +212,7 @@ export default function RegisterPage() {
                   placeholder="Ulangi password"
                   autoComplete="new-password"
                   required
-                  className="pr-10"
+                  className="pr-10 text-xs sm:text-sm"
                 />
                 <button type="button" tabIndex={-1} onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                   {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
@@ -218,7 +220,7 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            <p className="text-right text-xs text-muted-foreground">
+            <p className="text-right text-xs text-muted-foreground sm:text-xs">
               Sudah mempunyai akun?{" "}
               <Link
                 href="/"
@@ -228,7 +230,7 @@ export default function RegisterPage() {
               </Link>
             </p>
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button type="submit" className="w-full text-xs sm:text-sm" disabled={isLoading}>
               {isLoading ? "Mendaftar..." : "Daftar"}
             </Button>
           </form>
@@ -236,16 +238,16 @@ export default function RegisterPage() {
       </Card>
 
       <Dialog open={!!privateKey} onOpenChange={() => {}}>
-        <DialogContent className="sm:max-w-md" showCloseButton={false}>
+        <DialogContent className="w-full max-w-md p-4 sm:p-6 sm:max-w-md" showCloseButton={false}>
           <DialogHeader>
-            <DialogTitle>Simpan Private Key Anda</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-base sm:text-lg">Simpan Private Key Anda</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm">
               Private key ini digunakan untuk mendekripsi file Anda. Jangan
               berikan kepada siapapun. Jika hilang, file Anda tidak dapat dibuka
               kembali.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex items-center space-x-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:space-x-2">
             <div className="grid flex-1 gap-2">
               <Label htmlFor="private-key" className="sr-only">
                 Private Key
@@ -254,29 +256,29 @@ export default function RegisterPage() {
                 id="private-key"
                 value={privateKey || ""}
                 readOnly
-                className="font-mono text-xs"
+                className="font-mono text-[10px] sm:text-xs"
               />
             </div>
             <Button
               type="button"
               size="sm"
-              className="px-3"
+              className="px-2 sm:px-3 text-xs sm:text-sm"
               onClick={handleCopyKey}
             >
               {isCopied ? (
-                <Check className="size-4" />
+                <Check className="size-3 sm:size-4" />
               ) : (
-                <Copy className="size-4" />
+                <Copy className="size-3 sm:size-4" />
               )}
             </Button>
           </div>
           <Button
             type="button"
             variant={isDownloaded ? "outline" : "default"}
-            className="w-full"
+            className="w-full text-xs sm:text-sm"
             onClick={handleDownloadKey}
           >
-            <Download className="mr-2 size-4" />
+            <Download className="mr-2 size-3 sm:size-4" />
             {isDownloaded ? "Diunduh ✓" : "Unduh Private Key (.pem)"}
           </Button>
           <div className="flex items-center space-x-2 pt-2">
@@ -287,14 +289,14 @@ export default function RegisterPage() {
               checked={isConfirmed}
               onChange={(e) => setIsConfirmed(e.target.checked)}
             />
-            <Label htmlFor="confirm-saved" className="text-xs font-normal">
+            <Label htmlFor="confirm-saved" className="text-xs font-normal sm:text-xs">
               Saya sudah menyimpan private key dengan aman
             </Label>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
             <Button
               type="button"
-              className="w-full"
+              className="w-full text-xs sm:text-sm"
               disabled={!isDownloaded || !isConfirmed}
               onClick={handleFinishRegistration}
             >
