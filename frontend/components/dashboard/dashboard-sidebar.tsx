@@ -40,7 +40,11 @@ const menuItems = [
   },
 ]
 
-export function DashboardSidebar() {
+type DashboardSidebarProps = {
+  onClose?: () => void
+}
+
+export function DashboardSidebar({ onClose }: DashboardSidebarProps) {
   const pathname = usePathname()
   const [storage, setStorage] = useState(() => {
     try {
@@ -89,6 +93,10 @@ export function DashboardSidebar() {
   const [storageDialogOpen, setStorageDialogOpen] = useState(false)
   const progressValue = (storage.used / storage.limit) * 100
 
+  const handleMenuClick = () => {
+    onClose?.()
+  }
+
   return (
     <aside className="flex h-full flex-col bg-sidebar p-4 text-sidebar-foreground">
       <nav className="space-y-1">
@@ -110,6 +118,7 @@ export function DashboardSidebar() {
                   ? "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/80"
                   : "text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
               ].join(" ")}
+              onClick={handleMenuClick}
             >
               <Link href={item.href}>
                 <Icon className="size-5" />

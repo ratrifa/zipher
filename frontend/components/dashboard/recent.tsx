@@ -431,28 +431,28 @@ export function RecentSection() {
 
   return (
     <section>
-      <div className="sticky top-0 z-30 -mx-4 bg-background px-4 pb-4 md:-mx-6 md:px-6">
-        <div className="grid min-h-20 grid-cols-[1fr_auto] items-center gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Recent</h1>
-            <p className="text-sm text-muted-foreground">
-              Log aktivitas terbaru file dan folder.
-            </p>
-          </div>
+      <div className="sticky top-0 z-30 -mx-4 bg-background px-4 py-3 md:-mx-6 md:px-6">
+        <div className="mb-3 sm:mb-4">
+          <h1 className="text-base font-semibold tracking-tight sm:text-lg md:text-2xl">Recent</h1>
+          <p className="text-xs text-muted-foreground sm:text-sm">
+            Log aktivitas terbaru file dan folder.
+          </p>
+        </div>
 
+        <div className="flex flex-wrap items-center gap-2">
           <FileLayoutSwitch
             isList={isListView}
             onCheckedChange={setIsListView}
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="mt-3 flex flex-wrap items-center gap-1">
           {filterOptions.map((option) => (
             <Button
               key={option.value}
               variant={activeFilter === option.value ? "secondary" : "outline"}
               size="sm"
-              className="rounded-full px-4"
+              className="rounded-full px-3 text-xs sm:px-4"
               aria-pressed={activeFilter === option.value}
               onClick={() => setActiveFilter(option.value)}
             >

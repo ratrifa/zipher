@@ -12,8 +12,8 @@ export function ProfileSection({ title, description, children }: ProfileSectionP
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-xl">{title}</CardTitle>
-        <p className="text-sm text-muted-foreground">{description}</p>
+        <CardTitle className="text-lg sm:text-xl">{title}</CardTitle>
+        <p className="text-xs text-muted-foreground sm:text-sm">{description}</p>
       </CardHeader>
       <CardContent>{children}</CardContent>
     </Card>

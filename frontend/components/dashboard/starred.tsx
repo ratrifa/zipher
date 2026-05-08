@@ -399,21 +399,20 @@ export function StarredSection() {
 
   return (
     <section>
-      <div className="sticky top-0 z-30 -mx-4 h-20 bg-background px-4 md:-mx-6 md:px-6">
-        <div className="grid h-full grid-cols-[1fr_auto] items-center gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Starred</h1>
-            <p className="text-sm text-muted-foreground">
-              File dan folder favorit.
-            </p>
-          </div>
+      <div className="sticky top-0 z-30 -mx-4 bg-background px-4 py-3 sm:py-4 md:-mx-6 md:px-6">
+        <div className="mb-3 sm:mb-4">
+          <h1 className="text-base font-semibold tracking-tight sm:text-lg md:text-2xl">Starred</h1>
+          <p className="text-xs text-muted-foreground sm:text-sm">
+            File dan folder favorit.
+          </p>
+        </div>
 
-          <div className="flex items-center gap-2">
-            <FileLayoutSwitch
-              isList={isListView}
-              onCheckedChange={setIsListView}
-            />
-          </div>
+        <div className="flex items-center justify-between">
+          <div />
+          <FileLayoutSwitch
+            isList={isListView}
+            onCheckedChange={setIsListView}
+          />
         </div>
       </div>
 

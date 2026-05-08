@@ -181,10 +181,10 @@ export default function ProfilePage() {
 
   return (
     <DashboardShell>
-      <div className="relative mx-auto mb-12 w-full max-w-2xl space-y-8 px-4 pt-6 md:px-0">
+      <div className="relative mx-auto mb-8 w-full max-w-2xl space-y-6 px-3 py-4 sm:px-4 sm:py-6 md:mb-12 md:space-y-8 md:px-0 md:pt-6">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Profile</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Profile</h1>
+          <p className="text-xs text-muted-foreground sm:text-sm">
             Atur informasi akun, keamanan, dan perangkat yang terhubung.
           </p>
         </div>
@@ -197,9 +197,9 @@ export default function ProfilePage() {
             <ProfileSettingRow
               title="Foto profil"
               value={
-                <Avatar className="size-14 bg-slate-100">
+                <Avatar className="size-10 bg-slate-100 sm:size-14">
                   {avatarUrl && <AvatarImage src={avatarUrl} />}
-                  <AvatarFallback className="border border-slate-200 bg-slate-100 text-lg font-medium text-slate-500">
+                  <AvatarFallback className="border border-slate-200 bg-slate-100 text-sm font-medium text-slate-500 sm:text-lg">
                     {initials}
                   </AvatarFallback>
                 </Avatar>
@@ -211,7 +211,7 @@ export default function ProfilePage() {
             <ProfileSettingRow
               title="Username"
               value={
-                <span className="text-[15px] font-medium text-slate-800">
+                <span className="text-xs font-medium text-white sm:text-[15px]">
                   {user?.username || "..."}
                 </span>
               }
@@ -222,8 +222,8 @@ export default function ProfilePage() {
             <ProfileSettingRow
               title="Email"
               value={
-                <span className="inline-flex items-center gap-2 text-[15px] font-medium text-slate-800">
-                  <Mail className="size-4 text-slate-500" />
+                <span className="inline-flex items-center gap-2 text-xs font-medium text-white sm:text-[15px]">
+                  <Mail className="size-3 text-slate-500 sm:size-4" />
                   {user?.email || "..."}
                 </span>
               }
@@ -244,42 +244,42 @@ export default function ProfilePage() {
         </ProfileSection>
       </div>
 
-      {/* Modals Overlay */}
+      {/* Modals Overlay - More Responsive */}
       {activeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
           {/* Modal Background Click to Close */}
           <div
             className="absolute inset-0 cursor-pointer"
             onClick={() => setActiveModal(null)}
           />
 
-          <div className="relative z-10 w-full max-w-md animate-in rounded-xl bg-white p-6 shadow-xl duration-200 zoom-in-95 fade-in">
+          <div className="relative z-10 w-full max-w-md max-h-[90vh] animate-in rounded-xl bg-white p-4 shadow-xl duration-200 zoom-in-95 fade-in overflow-y-auto sm:p-6">
             {/* Content: Ganti Foto */}
             {activeModal === "foto" && (
-              <div className="flex flex-col gap-6">
+              <div className="flex flex-col gap-4 sm:gap-6">
                 <div>
-                  <h2 className="text-lg font-bold text-slate-800">
+                  <h2 className="text-base font-bold text-slate-800 sm:text-lg">
                     Ganti Foto Profil
                   </h2>
-                  <p className="text-sm text-slate-500">
+                  <p className="text-xs text-slate-500 sm:text-sm">
                     Unggah foto baru untuk profil Anda.
                   </p>
                 </div>
-                {error && <p className="text-sm text-destructive">{error}</p>}
-                <div className="flex justify-center py-4">
+                {error && <p className="text-xs text-destructive sm:text-sm">{error}</p>}
+                <div className="flex justify-center py-3 sm:py-4">
                   <div
                     className="group relative cursor-pointer"
                     onClick={() => fileInputRef.current?.click()}
                   >
-                    <Avatar className="size-24 border border-dashed border-slate-300">
+                    <Avatar className="size-16 border border-dashed border-slate-300 sm:size-24">
                       {avatarUrl && <AvatarImage src={avatarUrl} />}
-                      <AvatarFallback className="bg-slate-50 text-2xl text-slate-400">
+                      <AvatarFallback className="bg-slate-50 text-lg text-slate-400 sm:text-2xl">
                         {initials}
                       </AvatarFallback>
                     </Avatar>
                     <div className="absolute inset-0 flex flex-col items-center justify-center rounded-full bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
-                      <Camera className="mb-1 size-6 text-white" />
-                      <span className="text-[10px] font-bold text-white">
+                      <Camera className="mb-1 size-5 text-white sm:size-6" />
+                      <span className="text-[9px] font-bold text-white sm:text-[10px]">
                         Upload
                       </span>
                     </div>
@@ -292,16 +292,17 @@ export default function ProfilePage() {
                     />
                   </div>
                 </div>
-                <div className="mt-2 flex justify-end gap-3">
+                <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
                   <Button
                     variant="outline"
                     onClick={() => setActiveModal(null)}
                     disabled={isLoading}
+                    className="text-xs sm:text-sm"
                   >
                     Batal
                   </Button>
                   <Button
-                    className="border-transparent bg-blue-600 text-white hover:bg-blue-700"
+                    className="border-transparent bg-blue-600 text-xs text-white hover:bg-blue-700 sm:text-sm"
                     disabled={isLoading}
                   >
                     {isLoading ? "Mengunggah..." : "Simpan Profil"}
@@ -313,23 +314,23 @@ export default function ProfilePage() {
             {/* Content: Ganti Nama */}
             {activeModal === "nama" && (
               <form
-                className="flex flex-col gap-6"
+                className="flex flex-col gap-4 sm:gap-6"
                 onSubmit={handleUpdateProfile}
               >
                 <div>
-                  <h2 className="text-lg font-bold text-slate-800">
+                  <h2 className="text-base font-bold text-slate-800 sm:text-lg">
                     Ganti Nama
                   </h2>
-                  <p className="text-sm text-slate-500">
+                  <p className="text-xs text-slate-500 sm:text-sm">
                     Nama ini akan terlihat oleh pengguna lain.
                   </p>
                 </div>
-                {error && <p className="text-sm text-destructive">{error}</p>}
-                <div className="space-y-4">
-                  <div className="space-y-2">
+                {error && <p className="text-xs text-destructive sm:text-sm">{error}</p>}
+                <div className="space-y-3 sm:space-y-4">
+                  <div className="space-y-1 sm:space-y-2">
                     <Label
                       htmlFor="username"
-                      className="font-medium text-slate-700"
+                      className="text-xs font-medium text-slate-700 sm:text-sm"
                     >
                       Username
                     </Label>
@@ -338,23 +339,24 @@ export default function ProfilePage() {
                       name="username"
                       defaultValue={user?.username}
                       placeholder="Masukkan username..."
-                      className="bg-slate-50"
+                      className="bg-slate-50 text-xs sm:text-sm"
                       required
                     />
                   </div>
                 </div>
-                <div className="mt-2 flex justify-end gap-3">
+                <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => setActiveModal(null)}
                     disabled={isLoading}
+                    className="text-xs sm:text-sm"
                   >
                     Batal
                   </Button>
                   <Button
                     type="submit"
-                    className="border-transparent bg-blue-600 text-white hover:bg-blue-700"
+                    className="border-transparent bg-blue-600 text-xs text-white hover:bg-blue-700 sm:text-sm"
                     disabled={isLoading}
                   >
                     {isLoading ? "Menyimpan..." : "Simpan Perubahan"}
@@ -366,33 +368,33 @@ export default function ProfilePage() {
             {/* Content: Ganti Email */}
             {activeModal === "email" && (
               <form
-                className="flex flex-col gap-6"
+                className="flex flex-col gap-4 sm:gap-6"
                 onSubmit={handleUpdateProfile}
               >
                 <div>
-                  <h2 className="text-lg font-bold text-slate-800">
+                  <h2 className="text-base font-bold text-slate-800 sm:text-lg">
                     Ganti Email
                   </h2>
-                  <p className="text-sm text-slate-500">
+                  <p className="text-xs text-slate-500 sm:text-sm">
                     Pastikan email baru Anda aktif. Konfirmasi akan dikirimkan.
                   </p>
                 </div>
-                {error && <p className="text-sm text-destructive">{error}</p>}
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label className="font-medium text-slate-700">
+                {error && <p className="text-xs text-destructive sm:text-sm">{error}</p>}
+                <div className="space-y-3 sm:space-y-4">
+                  <div className="space-y-1 sm:space-y-2">
+                    <Label className="text-xs font-medium text-slate-700 sm:text-sm">
                       Email Saat Ini
                     </Label>
                     <Input
                       value={user?.email}
                       disabled
-                      className="bg-slate-100/50 text-slate-500"
+                      className="bg-slate-100/50 text-xs text-slate-500 sm:text-sm"
                     />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1 sm:space-y-2">
                     <Label
                       htmlFor="email"
-                      className="font-medium text-slate-700"
+                      className="text-xs font-medium text-slate-700 sm:text-sm"
                     >
                       Email Baru <span className="text-rose-500">*</span>
                     </Label>
@@ -401,23 +403,24 @@ export default function ProfilePage() {
                       name="email"
                       type="email"
                       placeholder="contoh@domain.com"
-                      className="bg-slate-50 focus-visible:ring-blue-100"
+                      className="bg-slate-50 text-xs focus-visible:ring-blue-100 sm:text-sm"
                       required
                     />
                   </div>
                 </div>
-                <div className="mt-2 flex justify-end gap-3">
+                <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => setActiveModal(null)}
                     disabled={isLoading}
+                    className="text-xs sm:text-sm"
                   >
                     Batal
                   </Button>
                   <Button
                     type="submit"
-                    className="border-transparent bg-blue-600 text-white hover:bg-blue-700"
+                    className="border-transparent bg-blue-600 text-xs text-white hover:bg-blue-700 sm:text-sm"
                     disabled={isLoading}
                   >
                     {isLoading ? "Menyimpan..." : "Kirim Konfirmasi"}
@@ -429,21 +432,21 @@ export default function ProfilePage() {
             {/* Content: Ganti Password */}
             {activeModal === "password" && (
               <form
-                className="flex flex-col gap-6"
+                className="flex flex-col gap-4 sm:gap-6"
                 onSubmit={handleChangePassword}
               >
                 <div>
-                  <h2 className="text-lg font-bold text-slate-800">
+                  <h2 className="text-base font-bold text-slate-800 sm:text-lg">
                     Ganti Password
                   </h2>
-                  <p className="text-sm text-slate-500">
+                  <p className="text-xs text-slate-500 sm:text-sm">
                     Amankan akun Anda dengan password yang kuat.
                   </p>
                 </div>
-                {error && <p className="text-sm text-destructive">{error}</p>}
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="current_password" className="font-medium text-slate-700">
+                {error && <p className="text-xs text-destructive sm:text-sm">{error}</p>}
+                <div className="space-y-3 sm:space-y-4">
+                  <div className="space-y-1 sm:space-y-2">
+                    <Label htmlFor="current_password" className="text-xs font-medium text-slate-700 sm:text-sm">
                       Password Saat Ini
                     </Label>
                     <div className="relative">
@@ -452,7 +455,7 @@ export default function ProfilePage() {
                         name="current_password"
                         type={showCurrentPassword ? "text" : "password"}
                         placeholder="••••••••"
-                        className="bg-slate-50 pr-10 focus-visible:ring-blue-100"
+                        className="bg-slate-50 pr-10 text-xs focus-visible:ring-blue-100 sm:text-sm"
                         required
                       />
                       <button type="button" tabIndex={-1} onClick={() => setShowCurrentPassword(!showCurrentPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
@@ -460,8 +463,8 @@ export default function ProfilePage() {
                       </button>
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password" className="font-medium text-slate-700">
+                  <div className="space-y-1 sm:space-y-2">
+                    <Label htmlFor="password" className="text-xs font-medium text-slate-700 sm:text-sm">
                       Password Baru
                     </Label>
                     <div className="relative">
@@ -470,7 +473,7 @@ export default function ProfilePage() {
                         name="password"
                         type={showNewPassword ? "text" : "password"}
                         placeholder="Min. 8 karakter"
-                        className="bg-slate-50 pr-10 focus-visible:ring-blue-100"
+                        className="bg-slate-50 pr-10 text-xs focus-visible:ring-blue-100 sm:text-sm"
                         required
                       />
                       <button type="button" tabIndex={-1} onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
@@ -478,8 +481,8 @@ export default function ProfilePage() {
                       </button>
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password_confirmation" className="font-medium text-slate-700">
+                  <div className="space-y-1 sm:space-y-2">
+                    <Label htmlFor="password_confirmation" className="text-xs font-medium text-slate-700 sm:text-sm">
                       Konfirmasi Password Baru
                     </Label>
                     <div className="relative">
@@ -488,7 +491,7 @@ export default function ProfilePage() {
                         name="password_confirmation"
                         type={showConfirmPassword ? "text" : "password"}
                         placeholder="Ulangi password baru"
-                        className="bg-slate-50 pr-10 focus-visible:ring-blue-100"
+                        className="bg-slate-50 pr-10 text-xs focus-visible:ring-blue-100 sm:text-sm"
                         required
                       />
                       <button type="button" tabIndex={-1} onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
@@ -497,18 +500,19 @@ export default function ProfilePage() {
                     </div>
                   </div>
                 </div>
-                <div className="mt-2 flex justify-end gap-3">
+                <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => setActiveModal(null)}
                     disabled={isLoading}
+                    className="text-xs sm:text-sm"
                   >
                     Batal
                   </Button>
                   <Button
                     type="submit"
-                    className="border-transparent bg-blue-600 text-white hover:bg-blue-700"
+                    className="border-transparent bg-blue-600 text-xs text-white hover:bg-blue-700 sm:text-sm"
                     disabled={isLoading}
                   >
                     {isLoading ? "Memperbarui..." : "Perbarui Password"}
