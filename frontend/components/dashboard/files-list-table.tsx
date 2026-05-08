@@ -25,7 +25,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 
-type FileListItem = {
+export type FileListItem = {
   id: string
   name: string
   owner: string

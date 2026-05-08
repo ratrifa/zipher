@@ -9,7 +9,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-export function getIcon(mimeType: string, isFolder: boolean, fileName: string = ""): typeof LucideIcon {
+export function getIcon(mimeType: string, isFolder: boolean, fileName: string = ""): LucideIcon {
   if (isFolder) return Folder
 
   const lowerName = fileName.toLowerCase()

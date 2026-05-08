@@ -62,6 +62,7 @@ function SearchInput() {
 export function DashboardNavbar() {
   const router = useRouter()
   const [user, setUser] = useState<any>(null)
+  const [submittingLogout, setSubmittingLogout] = useState(false)
 
   useEffect(() => {
     const userStr = localStorage.getItem("zipher_user")
@@ -86,21 +87,26 @@ export function DashboardNavbar() {
   }, [])
 
   const handleLogout = async () => {
-    await clearPrivateKey()
-    localStorage.removeItem("zipher_token")
-    localStorage.removeItem("zipher_user")
-    const cacheKeys = [
-      "zipher_cache_recent",
-      "zipher_cache_trash",
-      "zipher_cache_starred",
-      "zipher_cache_sharing",
-    ]
-    cacheKeys.forEach((k) => localStorage.removeItem(k))
-    // folder-level caches follow the pattern zipher_cache_contents_*
-    Object.keys(localStorage)
-      .filter((k) => k.startsWith("zipher_cache_contents_"))
-      .forEach((k) => localStorage.removeItem(k))
-    router.push("/")
+    try {
+      setSubmittingLogout(true)
+      await clearPrivateKey()
+      localStorage.removeItem("zipher_token")
+      localStorage.removeItem("zipher_user")
+      const cacheKeys = [
+        "zipher_cache_recent",
+        "zipher_cache_trash",
+        "zipher_cache_starred",
+        "zipher_cache_sharing",
+      ]
+      cacheKeys.forEach((k) => localStorage.removeItem(k))
+      // folder-level caches follow the pattern zipher_cache_contents_*
+      Object.keys(localStorage)
+        .filter((k) => k.startsWith("zipher_cache_contents_"))
+        .forEach((k) => localStorage.removeItem(k))
+      router.push("/")
+    } finally {
+      setSubmittingLogout(false)
+    }
   }
 
   const avatarUrl = user?.avatar ? `${API_BASE}/storage/${user.avatar}` : null

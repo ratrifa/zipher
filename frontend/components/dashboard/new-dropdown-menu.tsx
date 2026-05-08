@@ -144,7 +144,10 @@ export function NewDropdownMenu({
 
       const data = await response.json()
       if (response.ok || response.status === 200) {
-        currentParentId = data.data.id
+        if (!data.data?.id) {
+          throw new Error("Folder ID tidak ditemukan dalam response")
+        }
+        currentParentId = data.data.id as string
         folderCache.current[cacheKey] = currentParentId
       } else {
         throw new Error(data.message || `Gagal membuat folder: ${part}`)
