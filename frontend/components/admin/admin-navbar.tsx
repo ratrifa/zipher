@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
-import { FolderOpen, Search, ChevronDown, LogOut, Shield } from "lucide-react"
+import { FolderOpen, Search, ChevronDown, LogOut } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -66,15 +66,6 @@ export function AdminNavbar() {
           </div>
         </Link>
 
-        <div className="relative ml-2 hidden max-w-md flex-1 md:block">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Search users, reports, files..."
-            className="h-10 rounded-full bg-muted pl-10"
-          />
-        </div>
-
         <div className="ml-auto flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -93,10 +84,6 @@ export function AdminNavbar() {
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuLabel>Admin Account</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <Shield className="size-4" />
-                Super Admin
-              </DropdownMenuItem>
               <DropdownMenuItem
                 className="text-destructive"
                 onSelect={(event) => {

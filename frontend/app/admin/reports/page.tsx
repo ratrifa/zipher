@@ -2,20 +2,26 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { useAppDialog } from "@/hooks/use-app-dialog"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { TriangleAlert, ChevronDown, FolderOpen } from "lucide-react"
+import { TriangleAlert, FolderOpen, X, Clock, User, FileText } from "lucide-react"
 import { API_BASE } from "@/lib/api"
+import { formatDate, formatBytes } from "@/lib/utils/file-utils"
 
 type Report = {
   id: string
   file_id: string
   reporter_id: string
+  owner_id: string
   file_name: string
   owner_username: string
   reason: string
+  details?: string
   reporter_username: string
   created_at: string
+  mime_type?: string
+  size?: number
 }
 
 type ApiReport = {
@@ -23,11 +29,14 @@ type ApiReport = {
   file_id: string
   reporter_id: string
   reason: string
+  details?: string
   created_at: string
   file?: {
     id: string
     name: string
     user_id: string
+    mime_type?: string
+    size?: number
     user?: {
       id: string
       username: string
@@ -42,14 +51,15 @@ type ApiReport = {
 
 export default function ReportsPage() {
   const router = useRouter()
+  const { showConfirm } = useAppDialog()
   const [reports, setReports] = useState<Report[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
-  const [showFilters, setShowFilters] = useState(false)
-  const [showOnlyReportedByOthers, setShowOnlyReportedByOthers] =
-    useState(false)
   const [submittingIds, setSubmittingIds] = useState<string[]>([])
+  
+  const [selectedReport, setSelectedReport] = useState<Report | null>(null)
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
 
   const withSubmitting = async (id: string, action: () => Promise<void>) => {
     setSubmittingIds((prev) => [...prev, id])
@@ -74,11 +84,15 @@ export default function ReportsPage() {
       id: item.id,
       file_id: item.file_id,
       reporter_id: item.reporter_id,
+      owner_id: item.file?.user_id ?? "",
       file_name: item.file?.name ?? "Unknown file",
       owner_username: item.file?.user?.username ?? "-",
       reason: item.reason,
+      details: item.details,
       reporter_username: item.reporter?.username ?? "Unknown user",
       created_at: item.created_at,
+      mime_type: item.file?.mime_type,
+      size: item.file?.size,
     }))
   }
 
@@ -129,16 +143,19 @@ export default function ReportsPage() {
       }
 
       setReports((prev) => prev.filter((item) => item.id !== id))
+      if (selectedReport?.id === id) {
+        setIsDetailModalOpen(false)
+      }
     })
   }
 
-  const banReporter = async (reportId: string, reporterId: string) => {
+  const banOwner = async (reportId: string, userId: string) => {
     const token = getAuthToken()
     if (!token) return
 
     await withSubmitting(reportId, async () => {
       const response = await fetch(
-        `${API_BASE}/api/v1/admin/users/${reporterId}/ban`,
+        `${API_BASE}/api/v1/admin/users/${userId}/ban?report_id=${reportId}`,
         {
           method: "POST",
           headers: {
@@ -153,7 +170,10 @@ export default function ReportsPage() {
         throw new Error(payload.message || "Gagal ban user")
       }
 
-      await reviewReport(reportId, "dismissed")
+      setReports((prev) => prev.filter((item) => item.owner_id !== userId))
+      if (selectedReport?.owner_id === userId) {
+        setIsDetailModalOpen(false)
+      }
     })
   }
 
@@ -162,20 +182,26 @@ export default function ReportsPage() {
     if (!token) return
 
     await withSubmitting(reportId, async () => {
-      const response = await fetch(`${API_BASE}/api/v1/admin/files/${fileId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        },
-      })
+      const response = await fetch(
+        `${API_BASE}/api/v1/admin/files/${fileId}?report_id=${reportId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      )
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}))
         throw new Error(payload.message || "Gagal menghapus file")
       }
 
-      await reviewReport(reportId, "reviewed")
+      setReports((prev) => prev.filter((item) => item.id !== reportId))
+      if (selectedReport?.id === reportId) {
+        setIsDetailModalOpen(false)
+      }
     })
   }
 
@@ -201,11 +227,10 @@ export default function ReportsPage() {
       report.reporter_username.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  const visibleReports = showOnlyReportedByOthers
-    ? filteredReports.filter(
-        (report) => report.reporter_username !== report.owner_username
-      )
-    : filteredReports
+  const openDetail = (report: Report) => {
+    setSelectedReport(report)
+    setIsDetailModalOpen(true)
+  }
 
   if (loading) {
     return (
@@ -217,6 +242,7 @@ export default function ReportsPage() {
       </div>
     )
   }
+
   return (
     <div className="space-y-6 py-6">
       <div className="flex flex-col gap-1">
@@ -232,57 +258,18 @@ export default function ReportsPage() {
         </div>
       )}
 
-      <div className="w-full rounded-2xl border bg-card p-5 shadow-sm xl:w-4/5">
+      <div className="w-full rounded-2xl border bg-card p-5 shadow-sm">
         <div className="mt-1 mb-4 flex flex-wrap items-center justify-between gap-3">
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground"
-            onClick={() => setShowFilters((value) => !value)}
-          >
-            Search Filters
-            <ChevronDown className="size-4" />
-          </button>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="rounded-md bg-primary/15 px-3 py-1.5 text-[11px] font-semibold tracking-wide text-primary uppercase">
-              REPORT COUNT: {visibleReports.length}
-            </div>
-            <Input
-              placeholder="Search report..."
-              className="h-8 w-full max-w-55 text-xs"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+          <div className="rounded-md bg-primary/15 px-3 py-1.5 text-[11px] font-semibold tracking-wide text-primary uppercase">
+            REPORT COUNT: {filteredReports.length}
           </div>
+          <Input
+            placeholder="Search report..."
+            className="h-8 w-full max-w-55 text-xs"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
-
-        {showFilters && (
-          <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-muted/25 p-3">
-            <Button
-              type="button"
-              variant={showOnlyReportedByOthers ? "default" : "outline"}
-              size="xs"
-              className="h-7 rounded-full px-3 text-[10px] font-bold"
-              onClick={() => setShowOnlyReportedByOthers((value) => !value)}
-            >
-              {showOnlyReportedByOthers
-                ? "Show all reports"
-                : "Show external reports"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="xs"
-              className="h-7 rounded-full px-3 text-[10px] font-bold"
-              onClick={() => {
-                setSearchTerm("")
-                setShowOnlyReportedByOthers(false)
-              }}
-            >
-              Clear filters
-            </Button>
-          </div>
-        )}
 
         <div className="overflow-x-auto rounded-xl border border-border/80">
           <table className="w-full min-w-245 border-collapse text-center text-xs">
@@ -300,7 +287,7 @@ export default function ReportsPage() {
               </tr>
             </thead>
             <tbody>
-              {visibleReports.length === 0 ? (
+              {filteredReports.length === 0 ? (
                 <tr>
                   <td
                     colSpan={7}
@@ -310,7 +297,7 @@ export default function ReportsPage() {
                   </td>
                 </tr>
               ) : (
-                visibleReports.map((item, idx) => (
+                filteredReports.map((item, idx) => (
                   <tr
                     key={item.id}
                     className="border-b border-border/70 bg-card transition-colors last:border-b-0 hover:bg-muted/30"
@@ -333,7 +320,7 @@ export default function ReportsPage() {
                       {item.reporter_username}
                     </td>
                     <td className="px-2 py-3 text-left text-[11px] font-medium text-muted-foreground">
-                      {new Date(item.created_at).toLocaleDateString("id-ID")}
+                      {formatDate(item.created_at)}
                     </td>
 
                     <td className="px-3 py-2.5 text-right">
@@ -365,18 +352,7 @@ export default function ReportsPage() {
                           size="xs"
                           className="h-7 rounded-full border-primary/30 px-3 text-[10px] font-bold text-primary hover:bg-primary/10 hover:text-primary"
                           disabled={submittingIds.includes(item.id)}
-                          onClick={async () => {
-                            try {
-                              await reviewReport(item.id, "reviewed")
-                              setError(null)
-                            } catch (err) {
-                              setError(
-                                err instanceof Error
-                                  ? err.message
-                                  : "Terjadi kesalahan"
-                              )
-                            }
-                          }}
+                          onClick={() => openDetail(item)}
                         >
                           <FolderOpen className="size-3.5" />
                           View
@@ -388,6 +364,14 @@ export default function ReportsPage() {
                           className="h-7 rounded-full border-destructive/30 px-3 text-[10px] font-bold text-destructive hover:bg-destructive/10 hover:text-destructive"
                           disabled={submittingIds.includes(item.id)}
                           onClick={async () => {
+                            const confirmed = await showConfirm(
+                              "Konfirmasi Hapus File",
+                              `Apakah Anda yakin ingin menghapus file "${item.file_name}" secara permanen? File akan dihapus dari penyimpanan server dan database.`,
+                              { destructive: true }
+                            )
+
+                            if (!confirmed) return
+
                             try {
                               await deleteReportedFile(item.id, item.file_id)
                               setError(null)
@@ -409,8 +393,21 @@ export default function ReportsPage() {
                           className="h-7 rounded-full border-destructive/30 px-3 text-[10px] font-bold text-destructive hover:bg-destructive/10 hover:text-destructive"
                           disabled={submittingIds.includes(item.id)}
                           onClick={async () => {
+                            if (!item.owner_id) {
+                              setError("ID pemilik file tidak ditemukan.")
+                              return
+                            }
+
+                            const confirmed = await showConfirm(
+                              "Konfirmasi Ban Permanen",
+                              `Apakah Anda yakin ingin ban permanen pemilik file "${item.owner_username}"? Email ini akan di-blacklist dan seluruh filenya akan dihapus selamanya.`,
+                              { destructive: true }
+                            )
+
+                            if (!confirmed) return
+
                             try {
-                              await banReporter(item.id, item.reporter_id)
+                              await banOwner(item.id, item.owner_id)
                               setError(null)
                             } catch (err) {
                               setError(
@@ -433,6 +430,83 @@ export default function ReportsPage() {
           </table>
         </div>
       </div>
+
+      {/* Report Detail Modal */}
+      {isDetailModalOpen && selectedReport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div
+            className="absolute inset-0"
+            onClick={() => setIsDetailModalOpen(false)}
+          />
+          <div className="relative z-10 w-full max-w-lg rounded-2xl border bg-card p-6 shadow-xl">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="absolute top-4 right-4 rounded-full"
+              onClick={() => setIsDetailModalOpen(false)}
+            >
+              <X className="size-4" />
+            </Button>
+
+            <div className="mb-6 flex items-center gap-3">
+              <div className="rounded-full bg-destructive/10 p-2 text-destructive">
+                <TriangleAlert className="size-5" />
+              </div>
+              <h2 className="text-xl font-semibold tracking-tight">Detail Laporan</h2>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <p className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                    <FileText className="size-3" /> Informasi File
+                  </p>
+                  <p className="text-sm font-semibold truncate">{selectedReport.file_name}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                    <User className="size-3" /> Pemilik
+                  </p>
+                  <p className="text-sm font-semibold">{selectedReport.owner_username}</p>
+                </div>
+              </div>
+
+              <div className="space-y-2 rounded-xl border bg-muted/30 p-4">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Alasan</p>
+                <p className="text-sm leading-relaxed text-foreground/90">
+                  {selectedReport.reason}
+                  {selectedReport.details && (
+                    <span className="block mt-2 pt-2 border-t border-border/50 text-muted-foreground italic">
+                      "{selectedReport.details}"
+                    </span>
+                  )}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                <div className="flex items-center gap-1">
+                  <Clock className="size-3" />
+                  {formatDate(selectedReport.created_at)}
+                </div>
+                <div className="flex items-center gap-1 text-primary">
+                  <User className="size-3" />
+                  Dilapor Oleh {selectedReport.reporter_username}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-8 flex justify-end border-t pt-6">
+              <Button
+                variant="outline"
+                className="rounded-full h-9 px-6 text-xs font-semibold"
+                onClick={() => setIsDetailModalOpen(false)}
+              >
+                Tutup
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

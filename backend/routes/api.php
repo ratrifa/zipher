@@ -29,14 +29,14 @@ Route::prefix('v1')->group(function () {
         Route::get('users/{id}/public-key', [AuthController::class, 'getPublicKey']);
         Route::post('reports', [ReportController::class, 'store']);
 
-        // File + Folder
+        // Contents (file + folder)
         Route::get('contents', [ContentsController::class, 'index']);
         Route::post('contents/move', [ContentsController::class, 'move']);
 
         // Smart search
         Route::get('search', [SearchController::class, 'search']);
 
-        // Recent activity
+        // Recent 
         Route::get('recent', [RecentController::class, 'index']);
 
         // Files
@@ -58,8 +58,6 @@ Route::prefix('v1')->group(function () {
         Route::get('files/{id}/tags', [FileController::class, 'tags']);
         Route::put('files/{id}/tags', [FileController::class, 'replaceTags']);
         Route::delete('files/{id}/tags/{tagId}', [FileController::class, 'destroyTag']);
-
-        // Folders
         Route::get('folders/trash', [FolderController::class, 'trash']);
         Route::get('folders', [FolderController::class, 'index']);
         Route::post('folders', [FolderController::class, 'store']);
@@ -80,9 +78,6 @@ Route::prefix('v1')->group(function () {
         Route::delete('share/{id}', [ShareController::class, 'revoke']);
         Route::delete('shared/received/{id}', [ShareController::class, 'leave']);
 
-        // Reports
-        Route::post('reports', [ReportController::class, 'store']);
-
         // Admin routes
         Route::middleware(AdminMiddleware::class)->group(function () {
             Route::get('admin/dashboard', [AdminController::class, 'dashboard']);
@@ -91,7 +86,6 @@ Route::prefix('v1')->group(function () {
             Route::post('admin/reports/{id}/review', [AdminController::class, 'reviewReport']);
             Route::get('admin/users', [AdminController::class, 'users']);
             Route::post('admin/users/{id}/ban', [AdminController::class, 'banUser']);
-            Route::post('admin/users/{id}/unban', [AdminController::class, 'unbanUser']);
             Route::delete('admin/files/{id}', [AdminController::class, 'deleteFile']);
             Route::get('admin/activity', [AdminController::class, 'activity']);
         });

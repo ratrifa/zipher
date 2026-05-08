@@ -20,6 +20,8 @@ return new class extends Migration
             $table->string('password');
             $table->text('public_key')->nullable();
             $table->unsignedBigInteger('storage_limit')->default(34359738368);
+            $table->string('role')->default('user');
+            $table->boolean('is_banned')->default(false);
             $table->rememberToken();
             $table->timestamps();
         });

@@ -80,6 +80,7 @@ function formatReceivedItem(share: any) {
     isFolder: false,
     isStarred: !!item.is_starred,
     section: "received",
+    isReported: !!share.is_reported,
   }
 }
 
@@ -140,8 +141,12 @@ export function SharingSection() {
       try {
         const raw = JSON.parse(cached)
         setItems([
-          ...(raw.received || []).map(formatReceivedItem),
-          ...(raw.sent || []).map(formatSentItem),
+          ...(raw.received || [])
+            .filter((s: any) => s.file)
+            .map(formatReceivedItem),
+          ...(raw.sent || [])
+            .filter((s: any) => s.file)
+            .map(formatSentItem),
         ])
         setIsLoading(false)
       } catch {}
@@ -172,8 +177,12 @@ export function SharingSection() {
       const dataSent = await resSent.json()
 
       setItems([
-        ...(dataReceived.data || []).map(formatReceivedItem),
-        ...(dataSent.data || []).map(formatSentItem),
+        ...(dataReceived.data || [])
+          .filter((s: any) => s.file)
+          .map(formatReceivedItem),
+        ...(dataSent.data || [])
+          .filter((s: any) => s.file)
+          .map(formatSentItem),
       ])
       localStorage.setItem(
         "zipher_cache_sharing",
@@ -483,7 +492,10 @@ export function SharingSection() {
     () =>
       filteredFiles
         .filter((i) => i.section === "received")
-        .map((i) => ({ ...i, isReported: reportedShareIds.has(i.shareId) })),
+        .map((i) => ({
+          ...i,
+          isReported: i.isReported || reportedShareIds.has(i.shareId),
+        })),
     [filteredFiles, reportedShareIds]
   )
   const sentItems = useMemo(

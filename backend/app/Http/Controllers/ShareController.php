@@ -37,6 +37,14 @@ class ShareController extends Controller
             ], 422);
         }
 
+        $receiver = \App\Models\User::findOrFail($request->receiver_id);
+        if ($receiver->is_banned) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tidak dapat berbagi dengan pengguna yang telah di-blacklist.',
+            ], 422);
+        }
+
         $shared = SharedFile::updateOrCreate(
             [
                 'file_id' => $file->id,
@@ -71,7 +79,11 @@ class ShareController extends Controller
     public function sharedWithMe(): JsonResponse
     {
         $shared = SharedFile::where('receiver_id', auth()->id())
+            ->whereHas('file')
             ->with(['file', 'owner:id,username,email'])
+            ->withExists(['reports as is_reported' => function ($query) {
+                $query->where('reporter_id', auth()->id());
+            }])
             ->get();
 
         return response()->json([
@@ -83,6 +95,7 @@ class ShareController extends Controller
     public function sharedByMe(): JsonResponse
     {
         $shared = SharedFile::where('owner_id', auth()->id())
+            ->whereHas('file')
             ->with(['file', 'receiver:id,username,email'])
             ->get();
 

@@ -29,4 +29,9 @@ class SharedFile extends Model
     {
         return $this->belongsTo(User::class, 'receiver_id');
     }
+
+    public function reports()
+    {
+        return $this->hasMany(Report::class, 'share_id');
+    }
 }

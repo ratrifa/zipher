@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { useAppDialog } from "@/hooks/use-app-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -13,13 +14,14 @@ type User = {
   email: string
   is_banned: boolean
   created_at: string
-  report_count?: number
-  file_count?: number
+  files_count?: number
+  reports_received_count?: number
   avatar?: string
 }
 
 export default function UsersPage() {
   const router = useRouter()
+  const { showConfirm } = useAppDialog()
   const [activeUsers, setActiveUsers] = useState<User[]>([])
   const [bannedUsers, setBannedUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
@@ -102,31 +104,6 @@ export default function UsersPage() {
     })
   }
 
-  const unbanUser = async (userId: string) => {
-    const token = getAuthToken()
-    if (!token) return
-
-    await withSubmittingUser(userId, async () => {
-      const response = await fetch(
-        `${API_BASE}/api/v1/admin/users/${userId}/unban`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-        }
-      )
-
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}))
-        throw new Error(payload.message || "Gagal unban user")
-      }
-
-      await fetchUsers()
-    })
-  }
-
   useEffect(() => {
     const boot = async () => {
       try {
@@ -141,6 +118,7 @@ export default function UsersPage() {
 
     boot()
   }, [router])
+
   if (loading) {
     return (
       <div className="flex h-96 items-center justify-center">
@@ -169,7 +147,7 @@ export default function UsersPage() {
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold tracking-tight">Users</h1>
         <p className="text-sm text-muted-foreground">
-          Kelola user aktif dan user yang diblokir.
+          Kelola user aktif dan blacklist.
         </p>
       </div>
 
@@ -179,11 +157,12 @@ export default function UsersPage() {
         </div>
       )}
 
-      <div className="flex flex-col items-start gap-6 xl:flex-row">
-        <div className="w-full rounded-2xl border bg-card p-5 shadow-sm xl:flex-[1.35]">
+      <div className="flex flex-col gap-8">
+        {/* Table Active Users */}
+        <div className="w-full rounded-2xl border bg-card p-5 shadow-sm">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div className="rounded-md bg-primary/15 px-3 py-1.5 text-[11px] font-semibold tracking-wide text-primary uppercase">
-              USER ACTIVE ({activeUsers.length})
+              USERS ({activeUsers.length})
             </div>
             <Input
               placeholder="Search user..."
@@ -251,22 +230,22 @@ export default function UsersPage() {
                         {new Date(user.created_at).toLocaleDateString("id-ID")}
                       </td>
                       <td className="px-2 py-2.5 text-[11px] font-semibold">
-                        {user.report_count ? (
+                        {user.reports_received_count ? (
                           <span
                             className={
-                              user.report_count > 1
+                              user.reports_received_count > 1
                                 ? "text-destructive"
                                 : "text-amber-700 dark:text-amber-300"
                             }
                           >
-                            {user.report_count}
+                            {user.reports_received_count}
                           </span>
                         ) : (
                           <span className="text-muted-foreground">0</span>
                         )}
                       </td>
                       <td className="px-2 py-2.5 text-[11px] text-muted-foreground">
-                        {user.file_count || 0}
+                        {user.files_count ?? 0}
                       </td>
                       <td className="flex justify-center px-2 py-2.5">
                         <Button
@@ -276,6 +255,14 @@ export default function UsersPage() {
                           className="my-1 h-7 rounded-full border-destructive/30 px-3 text-[10px] font-bold text-destructive hover:bg-destructive/10 hover:text-destructive"
                           disabled={submittingUserIds.includes(user.id)}
                           onClick={async () => {
+                            const confirmed = await showConfirm(
+                              "Konfirmasi",
+                              `Apakah Anda yakin ingin ban permanen pengguna "${user.username}"? Email ini akan di-blacklist dan seluruh filenya akan dihapus selamanya.`,
+                              { destructive: true }
+                            )
+
+                            if (!confirmed) return
+
                             try {
                               await banUser(user.id)
                               setError(null)
@@ -299,10 +286,11 @@ export default function UsersPage() {
           </div>
         </div>
 
-        <div className="w-full rounded-2xl border bg-card p-5 shadow-sm xl:max-w-[45%]">
+        {/* Table Blacklisted Users */}
+        <div className="w-full rounded-2xl border bg-card p-5 shadow-sm">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div className="rounded-md bg-destructive/15 px-3 py-1.5 text-[11px] font-semibold tracking-wide text-destructive uppercase">
-              BANNED USER ({bannedUsers.length})
+              BLACKLISTED USERS ({bannedUsers.length})
             </div>
             <Input
               placeholder="Search user..."
@@ -313,25 +301,23 @@ export default function UsersPage() {
           </div>
 
           <div className="overflow-x-auto rounded-xl border border-border/80">
-            <table className="w-full min-w-155 border-collapse text-center text-xs">
+            <table className="w-full min-w-120 border-collapse text-center text-xs">
               <thead>
                 <tr className="border-b border-border/80 bg-muted/40 text-muted-foreground uppercase">
                   <th className="w-8 px-2 py-3 font-bold">No</th>
-                  <th className="px-2 py-3 text-left font-bold">Name</th>
-                  <th className="px-2 py-3 text-left font-bold">E-Mail</th>
-                  <th className="px-2 py-3 font-bold">Status</th>
-                  <th className="px-2 py-3 font-bold">Reports</th>
-                  <th className="w-12 px-2 py-3 font-bold">Action</th>
+                  <th className="w-[35%] px-2 py-3 text-left font-bold">Name</th>
+                  <th className="w-[35%] px-2 py-3 text-left font-bold">E-Mail</th>
+                  <th className="w-28 px-2 py-3 font-bold">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredBannedUsers.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={4}
                       className="py-8 text-center text-muted-foreground"
                     >
-                      Tidak ada user yang diblokir
+                      Tidak ada user dalam blacklist
                     </td>
                   </tr>
                 ) : (
@@ -362,39 +348,13 @@ export default function UsersPage() {
                           </span>
                         </div>
                       </td>
-                      <td className="px-2 py-2.5 text-[11px] text-muted-foreground">
+                      <td className="px-2 py-2.5 text-left text-[11px] text-muted-foreground">
                         {user.email}
                       </td>
                       <td className="px-2 py-2.5">
                         <span className="rounded-sm bg-destructive/15 px-2 py-1 text-[10px] font-semibold tracking-wide text-destructive uppercase">
                           Banned
                         </span>
-                      </td>
-                      <td className="px-2 py-2.5 text-[11px] font-semibold text-destructive">
-                        {user.report_count || 0}
-                      </td>
-                      <td className="flex justify-center px-2 py-2.5">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="xs"
-                          className="my-1 h-7 rounded-full border-emerald-500/30 px-3 text-[10px] font-bold text-emerald-700 hover:bg-emerald-500/10 hover:text-emerald-700 dark:text-emerald-300 dark:hover:text-emerald-300"
-                          disabled={submittingUserIds.includes(user.id)}
-                          onClick={async () => {
-                            try {
-                              await unbanUser(user.id)
-                              setError(null)
-                            } catch (err) {
-                              setError(
-                                err instanceof Error
-                                  ? err.message
-                                  : "Terjadi kesalahan"
-                              )
-                            }
-                          }}
-                        >
-                          Unban
-                        </Button>
                       </td>
                     </tr>
                   ))

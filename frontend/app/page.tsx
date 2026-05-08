@@ -51,7 +51,7 @@ export default function Page() {
       if (!res.ok) throw new Error(data.message || "Login gagal")
       localStorage.setItem("zipher_token", data.data.token)
       localStorage.setItem("zipher_user", JSON.stringify(data.data.user))
-      router.replace("/dashboard/my-files")
+      router.replace(data.data.user.role === "admin" ? "/admin" : "/dashboard/my-files")
     } catch (err: any) {
       setError(err.message)
     } finally {

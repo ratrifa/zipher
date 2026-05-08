@@ -58,6 +58,11 @@ class User extends Authenticatable
         return $this->hasMany(Report::class, 'reporter_id');
     }
 
+    public function reportsReceived()
+    {
+        return $this->hasManyThrough(Report::class, File::class, 'user_id', 'file_id');
+    }
+
     public function activityLogs()
     {
         return $this->hasMany(ActivityLog::class);

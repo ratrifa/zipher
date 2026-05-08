@@ -18,7 +18,8 @@ class AdminController extends Controller
     {
         $mostReportedUser = User::query()
             ->select('users.id', 'users.username')
-            ->join('reports', 'reports.reporter_id', '=', 'users.id')
+            ->join('files', 'files.user_id', '=', 'users.id')
+            ->join('reports', 'reports.file_id', '=', 'files.id')
             ->groupBy('users.id', 'users.username')
             ->orderByRaw('COUNT(reports.id) DESC')
             ->selectRaw('COUNT(reports.id) as report_count')
@@ -27,7 +28,7 @@ class AdminController extends Controller
         return response()->json([
             'success' => true,
             'data' => [
-                'total_users' => User::count(),
+                'total_users' => User::where('is_banned', false)->count(),
                 'total_files' => File::count(),
                 'total_folders' => Folder::count(),
                 'banned_users' => User::where('is_banned', true)->count(),
@@ -64,6 +65,7 @@ class AdminController extends Controller
         $perPage = min((int) $request->query('per_page', 20), 100);
 
         $users = User::select('id', 'username', 'email', 'role', 'is_banned', 'created_at')
+            ->withCount(['files as files_count' => fn($q) => $q->withTrashed(), 'reportsReceived'])
             ->when($query, fn($q) => $q->where('username', 'LIKE', "%{$query}%")
                 ->orWhere('email', 'LIKE', "%{$query}%"))
             ->orderBy('created_at', 'desc')
@@ -107,7 +109,7 @@ class AdminController extends Controller
     public function reviewReport(Request $request, string $id): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'status' => 'required|in:pending,reviewed,dismissed',
+            'status' => 'required|in:reviewed,dismissed',
             'review_note' => 'nullable|string|max:2000',
         ]);
 
@@ -119,8 +121,27 @@ class AdminController extends Controller
         }
 
         $report = Report::findOrFail($id);
+
+        if ($request->status === 'dismissed') {
+            ActivityLog::create([
+                'user_id' => auth()->id(),
+                'action' => 'report_dismissed',
+                'metadata' => [
+                    'report_id' => $report->id,
+                    'file_id' => $report->file_id,
+                ],
+            ]);
+
+            $report->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Laporan berhasil diabaikan dan dihapus.',
+            ]);
+        }
+
         $report->update([
-            'status' => $request->status,
+            'status' => 'reviewed',
             'reviewed_by' => auth()->id(),
             'reviewed_at' => now(),
         ]);
@@ -130,7 +151,7 @@ class AdminController extends Controller
             'action' => 'report_reviewed',
             'metadata' => [
                 'report_id' => $report->id,
-                'status' => $request->status,
+                'status' => 'reviewed',
                 'review_note' => $request->review_note,
             ],
         ]);
@@ -138,11 +159,11 @@ class AdminController extends Controller
         return response()->json([
             'success' => true,
             'data' => $report,
-            'message' => 'Report successfully reviewed',
+            'message' => 'Laporan berhasil ditandai sebagai telah ditinjau.',
         ]);
     }
 
-    public function banUser(string $id): JsonResponse
+    public function banUser(string $id, Request $request): JsonResponse
     {
         $user = User::findOrFail($id);
 
@@ -153,15 +174,50 @@ class AdminController extends Controller
             ], 422);
         }
 
-        if ($user->is_banned) {
+        if ($user->role === 'admin') {
             return response()->json([
-                'success' => true,
-                'message' => 'User sudah dalam status banned.',
-                'data' => ['id' => $user->id, 'is_banned' => true],
-            ]);
+                'success' => false,
+                'message' => 'Admin tidak dapat di-banned.',
+            ], 422);
         }
 
+        // Add to blacklist
+        \App\Models\EmailBlacklist::firstOrCreate(['email' => $user->email]);
+
+        // Revoke all tokens
+        $user->tokens()->delete();
+
+        // Delete all user files physically and from DB
+        $files = File::where('user_id', $user->id)->withTrashed()->get();
+        foreach ($files as $file) {
+            if ($file->storage_path) {
+                \Illuminate\Support\Facades\Storage::disk('local')->delete($file->storage_path);
+            }
+            $file->forceDelete();
+        }
+
+        // Delete all user folders
+        \App\Models\Folder::where('user_id', $user->id)->withTrashed()->forceDelete();
+
+        // Delete all sharing records (both sent and received)
+        \App\Models\SharedFile::where('owner_id', $user->id)
+            ->orWhere('receiver_id', $user->id)
+            ->delete();
+
         $user->forceFill(['is_banned' => true])->save();
+
+        // If banning from a report, update all related reports for this user's files
+        if ($request->has('report_id')) {
+            Report::where('status', 'pending')
+                ->whereHas('file', function($q) use ($user) {
+                    $q->where('user_id', $user->id);
+                })
+                ->update([
+                    'status' => 'reviewed',
+                    'reviewed_by' => auth()->id(),
+                    'reviewed_at' => now(),
+                ]);
+        }
 
         ActivityLog::create([
             'user_id' => auth()->id(),
@@ -169,67 +225,50 @@ class AdminController extends Controller
             'metadata' => [
                 'banned_user_id' => $user->id,
                 'banned_user_email' => $user->email,
+                'report_id' => $request->report_id,
             ],
         ]);
 
         return response()->json([
             'success' => true,
-            'message' => 'User banned successfully',
+            'message' => 'User permanently banned and files deleted successfully',
             'data' => ['id' => $user->id, 'is_banned' => true],
         ]);
     }
 
-    public function unbanUser(string $id): JsonResponse
+    public function deleteFile(string $id, Request $request): JsonResponse
     {
-        $user = User::findOrFail($id);
+        $file = File::query()->withTrashed()->findOrFail($id);
 
-        if (! $user->is_banned) {
-            return response()->json([
-                'success' => true,
-                'message' => 'User sudah dalam status aktif.',
-                'data' => ['id' => $user->id, 'is_banned' => false],
+        if ($file->storage_path) {
+            \Illuminate\Support\Facades\Storage::disk('local')->delete($file->storage_path);
+        }
+
+        // If deleting from a report, we should clear the reports before the cascade
+        // or just accept that the cascade happens. 
+        // To prevent 404 in subsequent frontend calls, we can manually mark as reviewed if it exists.
+        if ($request->has('report_id')) {
+            Report::where('id', $request->report_id)->update([
+                'status' => 'reviewed',
+                'reviewed_by' => auth()->id(),
+                'reviewed_at' => now(),
             ]);
         }
 
-        $user->forceFill(['is_banned' => false])->save();
-
-        ActivityLog::create([
-            'user_id' => auth()->id(),
-            'action' => 'user_unbanned',
-            'metadata' => [
-                'unbanned_user_id' => $user->id,
-                'unbanned_user_email' => $user->email,
-            ],
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'User unbanned successfully',
-            'data' => ['id' => $user->id, 'is_banned' => false],
-        ]);
-    }
-
-    public function deleteFile(string $id): JsonResponse
-    {
-        $file = File::query()->findOrFail($id);
-
-        if ($file->trashed()) {
-            $file->forceDelete();
-        } else {
-            $file->delete();
-        }
+        $file->forceDelete();
 
         ActivityLog::create([
             'user_id' => auth()->id(),
             'action' => 'admin_deleted_file',
             'metadata' => [
                 'file_id' => $id,
+                'report_id' => $request->report_id,
             ],
         ]);
 
         return response()->json([
             'success' => true,
-            'message' => 'File berhasil dihapus oleh admin.',
+            'message' => 'File berhasil dihapus permanen oleh admin.',
         ]);
     }
 }

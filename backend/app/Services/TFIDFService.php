@@ -5,7 +5,6 @@ namespace App\Services;
 class TFIDFService
 {
     private array $stopWords = [
-        // English
         'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
         'of', 'with', 'by', 'from', 'is', 'it', 'this', 'that', 'was', 'are',
         'be', 'as', 'we', 'our', 'you', 'your', 'they', 'their', 'its', 'not',
@@ -18,7 +17,7 @@ class TFIDFService
         'those', 'just', 'very', 'much', 'many', 'most', 'few', 'get', 'got',
         'make', 'made', 'take', 'come', 'like', 'use', 'used', 'one', 'two',
         'new', 'good', 'first', 'last', 'long', 'great', 'little', 'own',
-        // Indonesian
+        
         'yang', 'dan', 'atau', 'di', 'ke', 'dari', 'ini', 'itu', 'apa', 'agar',
         'dengan', 'untuk', 'pada', 'oleh', 'dalam', 'adalah', 'akan', 'ada',
         'tidak', 'juga', 'sudah', 'bisa', 'saya', 'kami', 'kita', 'mereka',

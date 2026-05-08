@@ -17,9 +17,11 @@ class AuthController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'username' => 'required|string|min:8|max:50|unique:users',
-            'email' => 'required|email|unique:users',
+            'email' => 'required|email|unique:users|unique:email_blacklists,email',
             'password' => 'required|string|min:8|confirmed',
             'public_key' => 'required|string',
+        ], [
+            'email.unique' => 'Email ini sudah terdaftar atau telah diblacklist.',
         ]);
 
         if ($validator->fails()) {
@@ -71,6 +73,13 @@ class AuthController extends Controller
             ], 401);
         }
 
+        if ($user->is_banned) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akun Anda telah di-blacklist secara permanen.',
+            ], 403);
+        }
+
         $token = $user->createToken('auth_token')->plainTextToken;
 
         ActivityLog::create([
@@ -115,7 +124,14 @@ class AuthController extends Controller
 
     public function getPublicKey(string $id): JsonResponse
     {
-        $user = User::select('id', 'username', 'email', 'public_key')->findOrFail($id);
+        $user = User::select('id', 'username', 'email', 'public_key', 'is_banned')->findOrFail($id);
+
+        if ($user->is_banned) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pengguna ini telah di-blacklist.',
+            ], 403);
+        }
 
         return response()->json([
             'success' => true,
@@ -136,11 +152,20 @@ class AuthController extends Controller
             ], 422);
         }
 
-        if (!User::where('email', $request->email)->exists()) {
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
             return response()->json([
                 'success' => false,
                 'message' => 'Email tidak ditemukan.',
             ], 404);
+        }
+
+        if ($user->is_banned) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akun ini telah di-blacklist secara permanen.',
+            ], 403);
         }
 
         return response()->json([
@@ -169,6 +194,13 @@ class AuthController extends Controller
                 'success' => false,
                 'message' => 'Email tidak ditemukan.',
             ], 404);
+        }
+
+        if ($user->is_banned) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akun ini telah di-blacklist secara permanen.',
+            ], 403);
         }
 
         $privKey = openssl_pkey_get_private($this->normalizePem($request->private_key));
@@ -236,6 +268,13 @@ class AuthController extends Controller
             ], 404);
         }
 
+        if ($user->is_banned) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akun ini telah di-blacklist secara permanen.',
+            ], 403);
+        }
+
         $privKey = openssl_pkey_get_private($this->normalizePem($request->private_key));
         if (!$privKey) {
             return response()->json([
@@ -274,6 +313,7 @@ class AuthController extends Controller
         $query = $request->query('q', '');
         $users = User::select('id', 'username', 'email', 'public_key')
             ->where('id', '!=', auth()->id())
+            ->where('is_banned', false)
             ->where(function($q) use ($query) {
                 $q->where('username', 'LIKE', "%{$query}%")
                   ->orWhere('email', 'LIKE', "%{$query}%");
