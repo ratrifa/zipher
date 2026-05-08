@@ -82,5 +82,17 @@ Route::prefix('v1')->group(function () {
 
         // Reports
         Route::post('reports', [ReportController::class, 'store']);
+
+        // Admin routes
+        Route::middleware(AdminMiddleware::class)->group(function () {
+            Route::get('admin/dashboard', [AdminController::class, 'dashboard']);
+            Route::get('admin/reports', [AdminController::class, 'recentReports']);
+            Route::get('admin/reports/{id}', [AdminController::class, 'showReport']);
+            Route::post('admin/reports/{id}/review', [AdminController::class, 'reviewReport']);
+            Route::get('admin/users', [AdminController::class, 'users']);
+            Route::post('admin/users/{id}/ban', [AdminController::class, 'banUser']);
+            Route::post('admin/users/{id}/unban', [AdminController::class, 'unbanUser']);
+            Route::get('admin/activity', [AdminController::class, 'activity']);
+        });
     });
 });

@@ -1,11 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import type { LucideIcon } from "lucide-react"
 import { History, Inbox, Siren, TriangleAlert, Users, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { API_BASE } from "@/lib/api"
 
 type ActiveModal = "reports" | "activity" | null
 
@@ -17,62 +19,62 @@ type OverviewCardItem = {
   iconClassName: string
 }
 
+type AdminStats = {
+  total_users: number
+  total_files: number
+  banned_users: number
+  pending_reports: number
+  most_reported_user?: {
+    username: string
+    report_count: number
+  }
+}
+
+type ReportItem = {
+  id: string
+  file_name: string
+  reason: string
+  reporter_username: string
+  created_at: string
+}
+
 const overviewCards: OverviewCardItem[] = [
   {
     label: "Users",
-    value: "1.234",
+    value: "0",
     icon: Users,
     iconClassName: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300",
   },
   {
     label: "All Files",
-    value: "1.234",
+    value: "0",
     icon: Inbox,
     iconClassName: "bg-sky-500/15 text-sky-600 dark:text-sky-300",
   },
   {
     label: "Banned Users",
-    value: "8",
+    value: "0",
     icon: TriangleAlert,
     iconClassName: "bg-destructive/15 text-destructive",
   },
   {
     label: "Reports Pending",
-    value: "123",
+    value: "0",
     icon: Siren,
     iconClassName: "bg-amber-500/15 text-amber-600 dark:text-amber-300",
   },
   {
     label: "Most Reported User",
-    value: "SyahbanTzy",
-    helper: "1234 Report",
+    value: "N/A",
+    helper: "0 Report",
     icon: TriangleAlert,
     iconClassName: "bg-rose-500/15 text-rose-600 dark:text-rose-300",
   },
 ]
 
-const recentReports = [
-  { title: "Video1.mp4", reason: "Danger", by: "User123", time: "2 menit lalu" },
-  { title: "Video2.mp4", reason: "18+", by: "User1234", time: "8 menit lalu" },
-  {
-    title: "Video3.mp4",
-    reason: "Confidential Info",
-    by: "User12345",
-    time: "15 menit lalu",
-  },
-]
+const recentReports = []
 
-const recentActivity = [
-  { name: "Vio The Goat", action: "Edited", file: "LABP.pdf", time: "2m ago" },
-  {
-    name: "Vio The Goat",
-    action: "Uploaded",
-    file: "LABP.pdf",
-    time: "1h ago",
-  },
-  { name: "Farrel", action: "Uploaded", file: "Image.png", time: "2h ago" },
-  { name: "Gorlock", action: "Uploaded", file: "Image.png", time: "3h ago" },
-]
+const recentActivity = []
 
 function OverviewCard({ item }: { item: OverviewCardItem }) {
   const Icon = item.icon
@@ -130,7 +132,116 @@ function ActionCard({
 }
 
 export default function AdminDashboardPage() {
+  const router = useRouter()
   const [activeModal, setActiveModal] = useState<ActiveModal>(null)
+  const [stats, setStats] = useState<AdminStats>({
+    total_users: 0,
+    total_files: 0,
+    banned_users: 0,
+    pending_reports: 0,
+  })
+  const [reports, setReports] = useState<ReportItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        const token = localStorage.getItem("zipher_token")
+        if (!token) {
+          router.push("/")
+          return
+        }
+
+        const dashRes = await fetch(`${API_BASE}/api/v1/admin/dashboard`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        })
+
+        if (!dashRes.ok) {
+          if (dashRes.status === 403) {
+            router.push("/dashboard")
+            return
+          }
+          throw new Error("Gagal mengambil data dashboard")
+        }
+
+        const dashData = await dashRes.json()
+        setStats(dashData.data)
+
+        const reportsRes = await fetch(`${API_BASE}/api/v1/admin/reports`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        })
+
+        if (reportsRes.ok) {
+          const reportsData = await reportsRes.json()
+          setReports(reportsData.data || [])
+        }
+
+        setError(null)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Terjadi kesalahan")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchDashboardData()
+  }, [router])
+
+  const cards: OverviewCardItem[] = [
+    {
+      label: "Users",
+      value: stats.total_users.toLocaleString(),
+      icon: Users,
+      iconClassName: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300",
+    },
+    {
+      label: "All Files",
+      value: stats.total_files.toLocaleString(),
+      icon: Inbox,
+      iconClassName: "bg-sky-500/15 text-sky-600 dark:text-sky-300",
+    },
+    {
+      label: "Banned Users",
+      value: stats.banned_users.toString(),
+      icon: TriangleAlert,
+      iconClassName: "bg-destructive/15 text-destructive",
+    },
+    {
+      label: "Reports Pending",
+      value: stats.pending_reports.toString(),
+      icon: Siren,
+      iconClassName: "bg-amber-500/15 text-amber-600 dark:text-amber-300",
+    },
+    ...(stats.most_reported_user
+      ? [
+          {
+            label: "Most Reported User",
+            value: stats.most_reported_user.username,
+            helper: `${stats.most_reported_user.report_count} Reports`,
+            icon: TriangleAlert,
+            iconClassName: "bg-rose-500/15 text-rose-600 dark:text-rose-300",
+          },
+        ]
+      : []),
+  ]
+
+  if (loading) {
+    return (
+      <div className="flex h-96 items-center justify-center">
+        <div className="text-center">
+          <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          <p className="text-muted-foreground">Loading dashboard...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="relative space-y-8 py-6">
@@ -139,8 +250,14 @@ export default function AdminDashboardPage() {
         <p className="text-sm text-muted-foreground">Dashboard overview</p>
       </div>
 
+      {error && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+          <p className="text-sm text-destructive">{error}</p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {overviewCards.map((item) => (
+        {cards.map((item) => (
           <OverviewCard key={item.label} item={item} />
         ))}
 
@@ -178,26 +295,30 @@ export default function AdminDashboardPage() {
                 <p className="text-sm text-muted-foreground">Laporan terbaru yang menunggu review admin.</p>
               </div>
 
-              <div className="space-y-3">
-                {recentReports.map((item) => (
-                  <div
-                    key={item.title}
-                    className="flex items-center justify-between gap-3 rounded-xl border bg-muted/35 p-4"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold">{item.title}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Reported by {item.by} - {item.time}
-                      </p>
-                      <span className="mt-2 inline-flex rounded-full bg-destructive/15 px-2.5 py-1 text-[10px] font-semibold text-destructive uppercase">
-                        {item.reason}
-                      </span>
+              <div className="max-h-96 space-y-3 overflow-y-auto">
+                {reports.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Tidak ada laporan pending</p>
+                ) : (
+                  reports.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between gap-3 rounded-xl border bg-muted/35 p-4"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold">{item.file_name}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Reported by {item.reporter_username}
+                        </p>
+                        <span className="mt-2 inline-flex rounded-full bg-destructive/15 px-2.5 py-1 text-[10px] font-semibold text-destructive uppercase">
+                          {item.reason}
+                        </span>
+                      </div>
+                      <Button size="sm" className="h-8 shrink-0 rounded-full px-4">
+                        Review
+                      </Button>
                     </div>
-                    <Button size="sm" className="h-8 shrink-0 rounded-full px-4">
-                      Review
-                    </Button>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
           )}
@@ -218,22 +339,8 @@ export default function AdminDashboardPage() {
                 <p className="text-sm text-muted-foreground">Ringkasan aktivitas terakhir pengguna.</p>
               </div>
 
-              <div className="space-y-3">
-                {recentActivity.map((item) => (
-                  <div
-                    key={`${item.name}-${item.time}`}
-                    className="flex items-center justify-between gap-3 rounded-xl border bg-muted/35 p-4"
-                  >
-                    <div>
-                      <p className="text-sm font-semibold">{item.name}</p>
-                      <p className="text-xs text-muted-foreground">{item.action}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium">{item.file}</p>
-                      <p className="text-xs text-muted-foreground">{item.time}</p>
-                    </div>
-                  </div>
-                ))}
+              <div className="max-h-96 space-y-3 overflow-y-auto">
+                <p className="text-sm text-muted-foreground">Activity feed coming soon...</p>
               </div>
             </div>
           )}
