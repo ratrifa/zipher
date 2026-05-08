@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\File;
+use App\Models\FileActivity;
 use App\Models\SharedFile;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -32,7 +33,7 @@ class ShareController extends Controller
         if ($request->receiver_id === auth()->id()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Cannot share with yourself',
+                'message' => 'Tidak dapat berbagi dengan diri sendiri.',
             ], 422);
         }
 
@@ -47,10 +48,23 @@ class ShareController extends Controller
             ]
         );
 
+        try {
+            FileActivity::create([
+                'user_id'   => auth()->id(),
+                'file_id'   => $file->id,
+                'file_name' => $file->name,
+                'mime_type' => $file->mime_type,
+                'is_folder' => false,
+                'action'    => 'shared',
+            ]);
+        } catch (\Exception $e) {
+            \Log::warning('Activity log failed (share): ' . $e->getMessage());
+        }
+
         return response()->json([
             'success' => true,
             'data' => $shared,
-            'message' => 'File shared successfully',
+            'message' => 'File berhasil dibagikan.',
         ], 201);
     }
 
@@ -88,7 +102,21 @@ class ShareController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Access revoked',
+            'message' => 'Akses berbagi berhasil dicabut.',
+        ]);
+    }
+
+    public function leave(string $id): JsonResponse
+    {
+        $shared = SharedFile::where('id', $id)
+            ->where('receiver_id', auth()->id())
+            ->firstOrFail();
+
+        $shared->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Akses berbagi berhasil dihapus.',
         ]);
     }
 }

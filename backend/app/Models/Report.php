@@ -2,22 +2,26 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 
-#[Fillable(['reporter_id', 'file_id', 'reason', 'details', 'status', 'reviewed_by', 'reviewed_at'])]
 class Report extends Model
 {
     use HasUuids;
 
-    protected $casts = [
-        'reviewed_at' => 'datetime',
+    public $timestamps = false;
+
+    protected $fillable = [
+        'id',
+        'share_id',
+        'file_id',
+        'reporter_id',
+        'reason',
     ];
 
-    public function reporter()
+    public function share()
     {
-        return $this->belongsTo(User::class, 'reporter_id');
+        return $this->belongsTo(SharedFile::class, 'share_id');
     }
 
     public function file()
@@ -25,8 +29,8 @@ class Report extends Model
         return $this->belongsTo(File::class);
     }
 
-    public function reviewedBy()
+    public function reporter()
     {
-        return $this->belongsTo(User::class, 'reviewed_by');
+        return $this->belongsTo(User::class, 'reporter_id');
     }
 }

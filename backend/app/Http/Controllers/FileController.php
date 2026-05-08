@@ -3,22 +3,32 @@
 namespace App\Http\Controllers;
 
 use App\Models\File;
+use App\Models\FileActivity;
+use App\Models\FileKeyword;
 use App\Models\FileTag;
+use App\Models\Folder;
+use App\Services\TFIDFService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class FileController extends Controller
 {
+    public function __construct(
+        private TFIDFService $tfidf
+    ) {}
+
     public function index(Request $request): JsonResponse
     {
         $folderId = $request->query('folder_id');
         $files = File::where('user_id', auth()->id())
             ->where('folder_id', $folderId)
+            ->with('tags')
             ->get();
 
         return response()->json([
@@ -29,20 +39,20 @@ class FileController extends Controller
 
     public function upload(Request $request): JsonResponse
     {
-        // tags may arrive as a JSON string in multipart uploads
         if (is_string($request->tags)) {
             $request->merge(['tags' => json_decode($request->tags, true)]);
         }
 
         $validator = Validator::make($request->all(), [
-            'file' => 'required|file|max:524288', // 512MB
+            'file' => 'required|file|max:1048576', // 1GB 
             'name' => 'required|string|max:255',
             'mime_type' => 'required|string',
             'aes_key_encrypted' => 'required|string',
-            'folder_id'   => 'nullable|uuid|exists:folders,id',
-            'tags'        => 'nullable|array|max:50',
-            'tags.*.name' => 'required_with:tags|string|max:100',
-            'tags.*.score'=> 'required_with:tags|numeric|min:0',
+            'folder_id'    => ['nullable', 'uuid', Rule::exists('folders', 'id')->where('user_id', auth()->id())],
+            'tags'         => 'nullable|array|max:50',
+            'tags.*.name'  => 'required_with:tags|string|max:100',
+            'tags.*.score' => 'required_with:tags|numeric|min:0',
+            'text_content' => 'nullable|string|max:500000',
         ]);
 
         if ($validator->fails()) {
@@ -52,6 +62,24 @@ class FileController extends Controller
             ], 422);
         }
 
+        $userId = auth()->id();
+        $folderId = $request->folder_id;
+        $name = $request->name;
+        $mimeType = $request->mime_type;
+
+        $originalName = pathinfo($name, PATHINFO_FILENAME);
+        $extension = pathinfo($name, PATHINFO_EXTENSION);
+        $extension = $extension ? "." . $extension : "";
+        $counter = 1;
+
+        while (File::where('user_id', $userId)
+            ->where('folder_id', $folderId)
+            ->where('name', $name)
+            ->exists()) {
+            $name = $originalName . " ($counter)" . $extension;
+            $counter++;
+        }
+
         $user = auth()->user();
         $incomingSize = $request->file('file')->getSize();
 
@@ -59,43 +87,81 @@ class FileController extends Controller
             $available = $user->storage_limit - $user->storageUsed();
             return response()->json([
                 'success' => false,
-                'message' => 'Storage limit exceeded. Available: ' . number_format($available / 1073741824, 2) . ' GB',
+                'message' => 'Batas penyimpanan terlampaui. Tersedia: ' . number_format($available / 1073741824, 2) . ' GB',
             ], 422);
         }
 
-        $path = $request->file('file')->store('uploads', 'public');
+        $path = $request->file('file')->store('uploads', 'local');
 
-        $file = File::create([
-            'user_id' => auth()->id(),
-            'folder_id' => $request->folder_id,
-            'name' => $request->name,
-            'size' => $request->file('file')->getSize(),
-            'mime_type' => $request->mime_type,
-            'storage_path' => $path,
-            'aes_key_encrypted' => $request->aes_key_encrypted,
-        ]);
+        try {
+            $file = File::create([
+                'user_id'           => $userId,
+                'folder_id'         => $folderId,
+                'name'              => $name,
+                'size'              => $request->file('file')->getSize(),
+                'mime_type'         => $mimeType,
+                'storage_path'      => $path,
+                'aes_key_encrypted' => $request->aes_key_encrypted,
+            ]);
 
-        if ($request->filled('tags')) {
-            FileTag::insert(
-                collect($request->tags)->map(fn($t) => [
-                    'id'         => (string) Str::uuid(),
-                    'file_id'    => $file->id,
-                    'name'       => $t['name'],
-                    'score'      => $t['score'],
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ])->all()
-            );
+            $tags = $request->tags ?? [];
+
+            if (!empty($tags)) {
+                FileTag::insert(
+                    collect($tags)->map(fn($t) => [
+                        'id'         => (string) Str::uuid(),
+                        'file_id'    => $file->id,
+                        'name'       => $t['name'],
+                        'score'      => $t['score'],
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ])->all()
+                );
+            }
+            if ($request->has('keywords')) {
+                $keywords = array_filter(
+                    json_decode($request->keywords, true) ?? [],
+                    fn($kw) => is_string($kw) && strlen(trim($kw)) > 0
+                );
+                if (!empty($keywords)) {
+                    FileKeyword::insert(
+                        array_map(fn($kw) => [
+                            'id'      => (string) Str::uuid(),
+                            'file_id' => $file->id,
+                            'keyword' => trim($kw),
+                        ], array_values($keywords))
+                    );
+                }
+            }
+        } catch (\Exception $e) {
+            Storage::disk('local')->delete($path);
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengunggah: ' . $e->getMessage(),
+            ], 500);
+        }
+
+        try {
+            FileActivity::create([
+                'user_id'   => $userId,
+                'file_id'   => $file->id,
+                'file_name' => $file->name,
+                'mime_type' => $file->mime_type,
+                'is_folder' => false,
+                'action'    => 'uploaded',
+            ]);
+        } catch (\Exception $e) {
+            \Log::warning('Activity log failed (upload): ' . $e->getMessage());
         }
 
         return response()->json([
             'success' => true,
             'data'    => $file->load('tags'),
-            'message' => 'File uploaded successfully',
+            'message' => 'File berhasil diunggah.',
         ], 201);
     }
 
-    public function download(string $id): StreamedResponse|JsonResponse
+    public function download(Request $request, string $id): StreamedResponse|JsonResponse
     {
         $userId = auth()->id();
         $file = File::where('id', $id)
@@ -108,24 +174,41 @@ class FileController extends Controller
         if (!$file) {
             return response()->json([
                 'success' => false,
-                'message' => 'File not found',
+                'message' => 'File tidak ditemukan.',
             ], 404);
         }
 
         $aesKey = $file->aes_key_encrypted;
         if ($file->user_id !== $userId) {
             $share = $file->shares()->where('receiver_id', $userId)->first();
+            if (!$share) {
+                return response()->json(['success' => false, 'message' => 'Akses ditolak.'], 403);
+            }
             $aesKey = $share->aes_key_encrypted_for_receiver;
         }
 
-        if (!Storage::disk('public')->exists($file->storage_path)) {
+        if (!Storage::disk('local')->exists($file->storage_path)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Physical file not found',
+                'message' => 'File tidak ditemukan.',
             ], 404);
         }
 
-        $content = Storage::disk('public')->get($file->storage_path);
+        $action = $request->query('intent') === 'preview' ? 'opened' : 'downloaded';
+        try {
+            FileActivity::create([
+                'user_id'   => $userId,
+                'file_id'   => $file->id,
+                'file_name' => $file->name,
+                'mime_type' => $file->mime_type,
+                'is_folder' => false,
+                'action'    => $action,
+            ]);
+        } catch (\Exception $e) {
+            \Log::warning('Activity log failed (download): ' . $e->getMessage());
+        }
+
+        $content = Storage::disk('local')->get($file->storage_path);
 
         return response()->stream(function() use ($content, $file, $aesKey) {
             echo json_encode([
@@ -133,57 +216,126 @@ class FileController extends Controller
                 'encrypted_data' => base64_encode($content),
                 'name' => $file->name,
                 'mime_type' => $file->mime_type,
+                'tags' => $file->tags,
             ]);
         }, 200, [
             'Content-Type' => 'application/json',
         ]);
     }
+public function update(Request $request, string $id): JsonResponse
+{
+    $file = File::where('id', $id)->where('user_id', auth()->id())->firstOrFail();
 
-    public function update(Request $request, string $id): JsonResponse
-    {
-        $file = File::where('id', $id)->where('user_id', auth()->id())->firstOrFail();
+    $validator = Validator::make($request->all(), [
+        'name' => 'sometimes|string|max:255',
+        'folder_id' => ['nullable', 'uuid', Rule::exists('folders', 'id')->where('user_id', auth()->id())],
+        'is_starred' => 'sometimes|boolean',
+    ]);
 
-        $validator = Validator::make($request->all(), [
-            'name' => 'sometimes|string|max:255',
-            'folder_id' => 'sometimes|nullable|uuid|exists:folders,id',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => $validator->errors()->first(),
-            ], 422);
-        }
-
-        $file->update($request->only('name', 'folder_id'));
-
+    if ($validator->fails()) {
         return response()->json([
-            'success' => true,
-            'data' => $file,
-            'message' => 'File updated',
-        ]);
+            'success' => false,
+            'message' => $validator->errors()->first(),
+        ], 422);
     }
+
+    $data = $request->only('folder_id', 'is_starred');
+
+    if ($request->has('name')) {
+        $userId = auth()->id();
+        $folderId = $request->has('folder_id') ? $request->folder_id : $file->folder_id;
+        $name = $request->name;
+
+        $originalName = pathinfo($name, PATHINFO_FILENAME);
+        $extension = pathinfo($name, PATHINFO_EXTENSION);
+        $extension = $extension ? "." . $extension : "";
+        $counter = 1;
+
+        while (File::where('user_id', $userId)
+            ->where('folder_id', $folderId)
+            ->where('name', $name)
+            ->where('id', '!=', $file->id)
+            ->exists()) {
+            $name = $originalName . " ($counter)" . $extension;
+            $counter++;
+        }
+        $data['name'] = $name;
+    }
+
+    $file->update($data);
+
+    if (isset($data['name'])) {
+        try {
+            FileActivity::create([
+                'user_id'   => auth()->id(),
+                'file_id'   => $file->id,
+                'file_name' => $file->name,
+                'mime_type' => $file->mime_type,
+                'is_folder' => false,
+                'action'    => 'renamed',
+            ]);
+        } catch (\Exception $e) {
+            \Log::warning('Activity log failed (rename): ' . $e->getMessage());
+        }
+    }
+
+    return response()->json([
+        'success' => true,
+        'data' => $file,
+        'message' => 'File berhasil diupdate.',
+    ]);
+}
 
     public function destroy(string $id): JsonResponse
     {
         $file = File::where('id', $id)->where('user_id', auth()->id())->firstOrFail();
         $file->delete();
 
+        try {
+            FileActivity::create([
+                'user_id'   => auth()->id(),
+                'file_id'   => $file->id,
+                'file_name' => $file->name,
+                'mime_type' => $file->mime_type,
+                'is_folder' => false,
+                'action'    => 'trashed',
+            ]);
+        } catch (\Exception $e) {
+            \Log::warning('Activity log failed (trash): ' . $e->getMessage());
+        }
+
         return response()->json([
             'success' => true,
-            'message' => 'File moved to trash',
+            'message' => 'File dipindahkan ke sampah.',
         ]);
     }
 
     public function starred(): JsonResponse
     {
-        $files = File::where('user_id', auth()->id())
+        $userId = auth()->id();
+        $files = File::where('user_id', $userId)
             ->where('is_starred', true)
-            ->get();
+            ->with(['folder', 'tags'])
+            ->get()
+            ->map(function($f) {
+                $arr = $f->toArray();
+                $arr['type'] = 'file';
+                return $arr;
+            });
+
+        $folders = Folder::where('user_id', $userId)
+            ->where('is_starred', true)
+            ->with('parent')
+            ->get()
+            ->map(function($f) {
+                $arr = $f->toArray();
+                $arr['type'] = 'folder';
+                return $arr;
+            });
 
         return response()->json([
             'success' => true,
-            'data' => $files,
+            'data' => $folders->concat($files)->values(),
         ]);
     }
 
@@ -200,7 +352,15 @@ class FileController extends Controller
 
     public function trash(): JsonResponse
     {
-        $files = File::onlyTrashed()->where('user_id', auth()->id())->get();
+        $files = File::onlyTrashed()
+            ->where('user_id', auth()->id())
+            ->where(function ($q) {
+                $q->whereNull('folder_id')
+                  ->orWhereHas('folder'); // folder exists and is not soft-deleted
+            })
+            ->with(['folder', 'tags'])
+            ->orderBy('deleted_at', 'desc')
+            ->get();
 
         return response()->json([
             'success' => true,
@@ -215,19 +375,33 @@ class FileController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'File restored',
+            'message' => 'File berhasil dipulihkan.',
         ]);
     }
 
     public function forceDelete(string $id): JsonResponse
     {
         $file = File::onlyTrashed()->where('id', $id)->where('user_id', auth()->id())->firstOrFail();
-        Storage::disk('public')->delete($file->storage_path);
+
+        try {
+            FileActivity::create([
+                'user_id'   => auth()->id(),
+                'file_id'   => null,
+                'file_name' => $file->name,
+                'mime_type' => $file->mime_type,
+                'is_folder' => false,
+                'action'    => 'deleted',
+            ]);
+        } catch (\Exception $e) {
+            \Log::warning('Activity log failed (force delete): ' . $e->getMessage());
+        }
+
+        Storage::disk('local')->delete($file->storage_path);
         $file->forceDelete();
 
         return response()->json([
             'success' => true,
-            'message' => 'File permanently deleted',
+            'message' => 'File berhasil dihapus permanen.',
         ]);
     }
 
@@ -281,6 +455,31 @@ class FileController extends Controller
         ]);
     }
 
+    public function getKey(string $id): JsonResponse
+    {
+        $userId = auth()->id();
+        $file = File::where('id', $id)
+            ->where(function($q) use ($userId) {
+                $q->where('user_id', $userId)
+                  ->orWhereHas('shares', fn($s) => $s->where('receiver_id', $userId));
+            })
+            ->firstOrFail();
+
+        $aesKey = $file->aes_key_encrypted;
+        if ($file->user_id !== $userId) {
+            $share = $file->shares()->where('receiver_id', $userId)->first();
+            if (!$share) {
+                return response()->json(['success' => false, 'message' => 'Akses ditolak.'], 403);
+            }
+            $aesKey = $share->aes_key_encrypted_for_receiver;
+        }
+
+        return response()->json([
+            'success' => true,
+            'aes_key_encrypted' => $aesKey,
+        ]);
+    }
+
     public function destroyTag(string $id, string $tagId): JsonResponse
     {
         $file = File::where('id', $id)->where('user_id', auth()->id())->firstOrFail();
@@ -290,6 +489,54 @@ class FileController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Tag removed',
+        ]);
+    }
+
+    public function storageBreakdown(): JsonResponse
+    {
+        $files = File::where('user_id', auth()->id())
+            ->select('mime_type', 'size')
+            ->get();
+
+        $breakdown = ['images' => 0, 'videos' => 0, 'documents' => 0, 'others' => 0];
+
+        foreach ($files as $file) {
+            $mime = strtolower($file->mime_type ?? '');
+
+            if (str_starts_with($mime, 'image/')) {
+                $breakdown['images'] += $file->size;
+            } elseif (str_starts_with($mime, 'video/')) {
+                $breakdown['videos'] += $file->size;
+            } elseif (
+                $mime === 'application/pdf' ||
+                str_starts_with($mime, 'text/') ||
+                str_contains($mime, 'wordprocessingml') ||
+                str_contains($mime, 'spreadsheetml') ||
+                str_contains($mime, 'presentationml') ||
+                str_contains($mime, 'msword') ||
+                str_contains($mime, 'ms-excel') ||
+                str_contains($mime, 'ms-powerpoint') ||
+                str_contains($mime, 'opendocument')
+            ) {
+                $breakdown['documents'] += $file->size;
+            } else {
+                $breakdown['others'] += $file->size;
+            }
+        }
+
+        $largest = File::where('user_id', auth()->id())
+            ->orderByDesc('size')
+            ->limit(5)
+            ->select('name', 'size', 'mime_type')
+            ->get()
+            ->map(fn($f) => ['name' => $f->name, 'size' => $f->size, 'mime_type' => $f->mime_type]);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'breakdown' => $breakdown,
+                'largest_files' => $largest,
+            ],
         ]);
     }
 }

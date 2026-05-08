@@ -3,7 +3,9 @@ import { Geist_Mono, Inter } from "next/font/google"
 import "./globals.css"
 import { AuthProvider } from "@/lib/auth"
 import { ThemeProvider } from "@/components/theme-provider"
-import { cn } from "@/lib/utils";
+import { UploadProvider } from "@/hooks/use-upload"
+import { AppDialogProvider } from "@/hooks/use-app-dialog"
+import { cn } from "@/lib/utils"
 
 const inter = Inter({subsets:['latin'],variable:'--font-sans'})
 
@@ -25,7 +27,11 @@ export default function RootLayout({
     >
       <body>
         <ThemeProvider>
-          <AuthProvider>{children}</AuthProvider>
+          <UploadProvider>
+            <AppDialogProvider>
+              {children}
+            </AppDialogProvider>
+          </UploadProvider>
         </ThemeProvider>
       </body>
     </html>

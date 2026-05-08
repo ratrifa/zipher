@@ -7,10 +7,31 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-#[Fillable(['name', 'user_id', 'parent_id'])]
+#[Fillable(['name', 'user_id', 'parent_id', 'is_starred'])]
 class Folder extends Model
 {
     use HasUuids, SoftDeletes;
+
+    protected $casts = ['is_starred' => 'boolean'];
+
+    protected $appends = ['items_count', 'total_size'];
+
+    public function getItemsCountAttribute(): int
+    {
+        $fileCount = $this->files()->withTrashed()->count();
+        $folderCount = $this->children()->withTrashed()->count();
+        return $fileCount + $folderCount;
+    }
+
+    public function getTotalSizeAttribute(): int
+    {
+        $fileSize = (int) $this->files()->withTrashed()->sum('size');
+        $childrenSize = 0;
+        foreach ($this->children()->withTrashed()->get() as $child) {
+            $childrenSize += $child->total_size;
+        }
+        return $fileSize + $childrenSize;
+    }
 
     public function user()
     {

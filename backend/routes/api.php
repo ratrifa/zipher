@@ -5,8 +5,10 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ContentsController;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\FolderController;
-use App\Http\Controllers\ReportController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\RecentController;
 use App\Http\Controllers\SearchController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ShareController;
 use App\Http\Middleware\AdminMiddleware;
 use App\Http\Middleware\EnsureNotBanned;
@@ -17,6 +19,7 @@ Route::prefix('v1')->group(function () {
     Route::post('register', [AuthController::class, 'register']);
     Route::post('login', [AuthController::class, 'login']);
     Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
+    Route::post('verify-reset-key', [AuthController::class, 'verifyResetKey']);
     Route::post('reset-password', [AuthController::class, 'resetPassword']);
 
     Route::middleware(['auth:sanctum', EnsureNotBanned::class])->group(function () {
@@ -26,23 +29,32 @@ Route::prefix('v1')->group(function () {
         Route::get('users/{id}/public-key', [AuthController::class, 'getPublicKey']);
         Route::post('reports', [ReportController::class, 'store']);
 
-        // Unified contents (files + folders mixed)
+        // File + Folder
         Route::get('contents', [ContentsController::class, 'index']);
+        Route::post('contents/move', [ContentsController::class, 'move']);
 
         // Smart search
         Route::get('search', [SearchController::class, 'search']);
 
+        // Recent activity
+        Route::get('recent', [RecentController::class, 'index']);
+
         // Files
+        Route::get('storage/breakdown', [FileController::class, 'storageBreakdown']);
         Route::get('files/trash', [FileController::class, 'trash']);
         Route::get('files/starred', [FileController::class, 'starred']);
         Route::post('files/{id}/star', [FileController::class, 'toggleStar']);
         Route::get('files', [FileController::class, 'index']);
         Route::post('files/upload', [FileController::class, 'upload']);
         Route::get('files/{id}/download', [FileController::class, 'download']);
+        Route::get('files/{id}/key', [FileController::class, 'getKey']);
         Route::patch('files/{id}', [FileController::class, 'update']);
         Route::delete('files/{id}', [FileController::class, 'destroy']);
         Route::post('files/{id}/restore', [FileController::class, 'restore']);
         Route::delete('files/{id}/force', [FileController::class, 'forceDelete']);
+
+        // Folders
+        Route::post('folders/{id}/star', [FolderController::class, 'toggleStar']);
         Route::get('files/{id}/tags', [FileController::class, 'tags']);
         Route::put('files/{id}/tags', [FileController::class, 'replaceTags']);
         Route::delete('files/{id}/tags/{tagId}', [FileController::class, 'destroyTag']);
@@ -56,21 +68,19 @@ Route::prefix('v1')->group(function () {
         Route::post('folders/{id}/restore', [FolderController::class, 'restore']);
         Route::delete('folders/{id}/force', [FolderController::class, 'forceDelete']);
 
+        // Profile
+        Route::patch('profile', [ProfileController::class, 'update']);
+        Route::post('profile/password', [ProfileController::class, 'updatePassword']);
+        Route::post('profile/avatar', [ProfileController::class, 'updateAvatar']);
+
         // Sharing
         Route::post('share', [ShareController::class, 'share']);
         Route::get('shared/with-me', [ShareController::class, 'sharedWithMe']);
         Route::get('shared/by-me', [ShareController::class, 'sharedByMe']);
         Route::delete('share/{id}', [ShareController::class, 'revoke']);
+        Route::delete('shared/received/{id}', [ShareController::class, 'leave']);
 
-        Route::prefix('admin')->middleware(AdminMiddleware::class)->group(function () {
-            Route::get('dashboard', [AdminController::class, 'dashboard']);
-            Route::get('recent-reports', [AdminController::class, 'recentReports']);
-            Route::get('users', [AdminController::class, 'users']);
-            Route::get('activity', [AdminController::class, 'activity']);
-            Route::get('review-report/{id}', [AdminController::class, 'showReport']);
-            Route::patch('review-report/{id}', [AdminController::class, 'reviewReport']);
-            Route::post('ban-user/{id}', [AdminController::class, 'banUser']);
-            Route::post('unban-user/{id}', [AdminController::class, 'unbanUser']);
-        });
+        // Reports
+        Route::post('reports', [ReportController::class, 'store']);
     });
 });

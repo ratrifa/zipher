@@ -1,70 +1,142 @@
 "use client"
 
-import { FormEvent, useEffect, useState } from "react"
+import { API_BASE } from "@/lib/api"
+import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { Check, Copy, Download, Eye, EyeOff } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useAuth } from "@/lib/auth"
-
-function generatePublicKeyPlaceholder() {
-  if (typeof window !== "undefined" && window.crypto?.randomUUID) {
-    return `pk-${window.crypto.randomUUID()}`
-  }
-
-  return `pk-${Date.now()}`
-}
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { savePrivateKey } from "@/lib/crypto"
 
 export default function RegisterPage() {
   const router = useRouter()
-  const { isAuthenticated, loading, register } = useAuth()
-
-  const [email, setEmail] = useState("")
-  const [username, setUsername] = useState("")
-  const [password, setPassword] = useState("")
-  const [confirmPassword, setConfirmPassword] = useState("")
-  const [submitting, setSubmitting] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [privateKey, setPrivateKey] = useState<string | null>(null)
+  const [isCopied, setIsCopied] = useState(false)
+  const [isDownloaded, setIsDownloaded] = useState(false)
+  const [isConfirmed, setIsConfirmed] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
-  useEffect(() => {
-    if (!loading && isAuthenticated) {
-      router.replace("/dashboard/my-files")
+  async function generateKeyPair() {
+    const keyPair = await window.crypto.subtle.generateKey(
+      {
+        name: "RSA-OAEP",
+        modulusLength: 2048,
+        publicExponent: new Uint8Array([1, 0, 1]),
+        hash: "SHA-256",
+      },
+      true,
+      ["encrypt", "decrypt"]
+    )
+
+    const publicKeyBuffer = await window.crypto.subtle.exportKey(
+      "spki",
+      keyPair.publicKey
+    )
+    const privateKeyBuffer = await window.crypto.subtle.exportKey(
+      "pkcs8",
+      keyPair.privateKey
+    )
+
+    const publicKeyBase64 = btoa(
+      String.fromCharCode(...new Uint8Array(publicKeyBuffer))
+    )
+    const privateKeyBase64 = btoa(
+      String.fromCharCode(...new Uint8Array(privateKeyBuffer))
+    )
+
+    return {
+      publicKey: publicKeyBase64,
+      privateKey: privateKeyBase64,
     }
-  }, [isAuthenticated, loading, router])
+  }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setIsLoading(true)
     setError(null)
 
+    const formData = new FormData(e.currentTarget)
+    const email = formData.get("email") as string
+    const username = formData.get("username") as string
+    const password = formData.get("password") as string
+    const confirmPassword = formData.get("confirmPassword") as string
+
     if (password !== confirmPassword) {
-      setError("Konfirmasi password tidak cocok.")
+      setError("Password tidak cocok")
+      setIsLoading(false)
       return
     }
 
-    setSubmitting(true)
-
     try {
-      await register({
-        username,
-        email,
-        password,
-        password_confirmation: confirmPassword,
-        public_key: generatePublicKeyPlaceholder(),
+      const keys = await generateKeyPair()
+
+      const response = await fetch(`${API_BASE}/api/v1/register`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          username,
+          password,
+          password_confirmation: confirmPassword,
+          public_key: keys.publicKey,
+        }),
       })
 
-      router.replace("/dashboard/my-files")
-    } catch (submitError) {
-      setError(
-        submitError instanceof Error
-          ? submitError.message
-          : "Registrasi gagal, silakan coba lagi."
-      )
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || "Registrasi gagal")
+      }
+
+      await savePrivateKey(keys.privateKey)
+      setPrivateKey(keys.privateKey)
+    } catch (err: any) {
+      setError(err.message)
     } finally {
-      setSubmitting(false)
+      setIsLoading(false)
     }
+  }
+
+  function handleCopyKey() {
+    if (privateKey) {
+      navigator.clipboard.writeText(privateKey)
+      setIsCopied(true)
+      setTimeout(() => setIsCopied(false), 2000)
+    }
+  }
+
+  function handleDownloadKey() {
+    if (!privateKey) return
+    const blob = new Blob([privateKey], { type: "application/octet-stream" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = "zipher-private-key.pem"
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 100)
+    setIsDownloaded(true)
+  }
+
+  function handleFinishRegistration() {
+    router.push("/")
   }
 
   return (
@@ -76,11 +148,16 @@ export default function RegisterPage() {
 
       <Card className="w-full max-w-sm py-6">
         <CardHeader>
-          <CardTitle className="text-center text-xl">Daftar</CardTitle>
+          <CardTitle className="text-center text-xl">Register</CardTitle>
         </CardHeader>
 
         <CardContent>
           <form className="space-y-4" onSubmit={handleSubmit}>
+            {error && (
+              <p className="text-center text-sm font-medium text-destructive">
+                {error}
+              </p>
+            )}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -90,8 +167,6 @@ export default function RegisterPage() {
                 placeholder="nama@email.com"
                 autoComplete="email"
                 required
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
               />
             </div>
 
@@ -103,41 +178,44 @@ export default function RegisterPage() {
                 type="text"
                 placeholder="Masukkan username"
                 autoComplete="username"
-                minLength={8}
                 required
-                value={username}
-                onChange={(event) => setUsername(event.target.value)}
               />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                placeholder="Masukkan password"
-                autoComplete="new-password"
-                minLength={8}
-                required
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Masukkan password"
+                  autoComplete="new-password"
+                  required
+                  className="pr-10"
+                />
+                <button type="button" tabIndex={-1} onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input
-                id="confirmPassword"
-                name="confirmPassword"
-                type="password"
-                placeholder="Ulangi password"
-                autoComplete="new-password"
-                minLength={8}
-                required
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-              />
+              <div className="relative">
+                <Input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type={showConfirmPassword ? "text" : "password"}
+                  placeholder="Ulangi password"
+                  autoComplete="new-password"
+                  required
+                  className="pr-10"
+                />
+                <button type="button" tabIndex={-1} onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
             </div>
 
             <p className="text-right text-xs text-muted-foreground">
@@ -150,14 +228,81 @@ export default function RegisterPage() {
               </Link>
             </p>
 
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
-
-            <Button type="submit" className="w-full" disabled={submitting || loading}>
-              {submitting ? "Memproses..." : "Daftar"}
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? "Mendaftar..." : "Daftar"}
             </Button>
           </form>
         </CardContent>
       </Card>
+
+      <Dialog open={!!privateKey} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Simpan Private Key Anda</DialogTitle>
+            <DialogDescription>
+              Private key ini digunakan untuk mendekripsi file Anda. Jangan
+              berikan kepada siapapun. Jika hilang, file Anda tidak dapat dibuka
+              kembali.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center space-x-2">
+            <div className="grid flex-1 gap-2">
+              <Label htmlFor="private-key" className="sr-only">
+                Private Key
+              </Label>
+              <Input
+                id="private-key"
+                value={privateKey || ""}
+                readOnly
+                className="font-mono text-xs"
+              />
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              className="px-3"
+              onClick={handleCopyKey}
+            >
+              {isCopied ? (
+                <Check className="size-4" />
+              ) : (
+                <Copy className="size-4" />
+              )}
+            </Button>
+          </div>
+          <Button
+            type="button"
+            variant={isDownloaded ? "outline" : "default"}
+            className="w-full"
+            onClick={handleDownloadKey}
+          >
+            <Download className="mr-2 size-4" />
+            {isDownloaded ? "Diunduh ✓" : "Unduh Private Key (.pem)"}
+          </Button>
+          <div className="flex items-center space-x-2 pt-2">
+            <input
+              type="checkbox"
+              id="confirm-saved"
+              className="size-4 rounded border-gray-300"
+              checked={isConfirmed}
+              onChange={(e) => setIsConfirmed(e.target.checked)}
+            />
+            <Label htmlFor="confirm-saved" className="text-xs font-normal">
+              Saya sudah menyimpan private key dengan aman
+            </Label>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              className="w-full"
+              disabled={!isDownloaded || !isConfirmed}
+              onClick={handleFinishRegistration}
+            >
+              Lanjutkan ke Login
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   )
 }

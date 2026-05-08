@@ -1,12 +1,21 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { API_BASE } from "@/lib/api"
+import {
+  getIcon,
+  getIconClassName,
+  formatBytes,
+  formatDate,
+} from "@/lib/utils/file-utils"
+import { useMemo, useState, useEffect } from "react"
 import {
   FileImage,
   FileSpreadsheet,
   FileText,
   Folder,
   Presentation,
+  File as FileIcon,
+  FileCode2,
 } from "lucide-react"
 
 import { FileCard } from "@/components/dashboard/file-card"
@@ -15,169 +24,280 @@ import {
   FilesListTable,
   type FileFilterOption,
 } from "@/components/dashboard/files-list-table"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
 
-const baseDeletedFiles = [
-  {
-    name: "LEMBAR PENGESAHAN ORISINALITAS KARYA WEB.pdf",
-    meta: "PDF • 1.8 MB",
-    updatedAt: "26 Mar",
-    owner: "saya",
-    size: "1.8 MB",
-    location: "Web Design - hara h...",
-    icon: FileText,
-    iconClassName: "bg-orange-100 text-orange-700",
-  },
-  {
-    name: "Lembar Pengesahani.pdf",
-    meta: "PDF • 84 KB",
-    updatedAt: "26 Mar",
-    owner: "saya",
-    size: "84 KB",
-    location: "Web Design - hara h...",
-    icon: FileText,
-    iconClassName: "bg-orange-100 text-orange-700",
-  },
-  {
-    name: "Old Marketing Plan",
-    meta: "Google Docs • 2.1 MB",
-    updatedAt: "25 Mar",
-    owner: "Design Team",
-    size: "2.1 MB",
-    location: "Marketing Assets",
-    icon: FileText,
-    iconClassName: "bg-blue-100 text-blue-700",
-  },
-  {
-    name: "Presentation Draft v1",
-    meta: "Presentation • 12 MB",
-    updatedAt: "24 Mar",
-    owner: "You",
-    size: "12 MB",
-    location: "Projects",
-    icon: Presentation,
-    iconClassName: "bg-rose-100 text-rose-700",
-  },
-  {
-    name: "Budget Spreadsheet 2025",
-    meta: "Google Sheets • 856 KB",
-    updatedAt: "23 Mar",
-    owner: "Finance",
-    size: "856 KB",
-    location: "Financial Reports",
-    icon: FileSpreadsheet,
-    iconClassName: "bg-emerald-100 text-emerald-700",
-  },
-  {
-    name: "Old Design Reference",
-    meta: "Image • 7.2 MB",
-    updatedAt: "22 Mar",
-    owner: "You",
-    size: "7.2 MB",
-    location: "Design Assets",
-    icon: FileImage,
-    iconClassName: "bg-violet-100 text-violet-700",
-  },
-]
-
-const extraFileIcons = [
-  Folder,
-  FileSpreadsheet,
-  FileText,
-  FileImage,
-  Presentation,
-]
-const extraFileStyles = [
-  "bg-blue-100 text-blue-700",
-  "bg-emerald-100 text-emerald-700",
-  "bg-orange-100 text-orange-700",
-  "bg-violet-100 text-violet-700",
-  "bg-rose-100 text-rose-700",
-]
-const extraFileMeta = [
-  "Folder • 12 items",
-  "Google Sheets • 860 KB",
-  "PDF • 2.4 MB",
-  "Image • 4.2 MB",
-  "Presentation • 6 slides",
-]
-const owners = ["You", "saya", "Design Team", "Finance", "Marketing"]
-const sizes = ["840 KB", "2.4 MB", "5.8 MB", "78 MB", "1.1 GB"]
-
-const generatedDeletedFiles = Array.from({ length: 14 }, (_, index) => {
-  const variant = index % 5
-  const fileNumber = index + 7
-  const daysAgo = (index % 10) + 1
-
+function formatTrashFile(item: any) {
   return {
-    name: `Deleted File ${fileNumber}`,
-    meta: extraFileMeta[variant],
-    updatedAt: `${daysAgo} days ago`,
-    owner: owners[index % owners.length],
-    size: sizes[index % sizes.length],
-    location: ["Projects", "Marketing Assets", "Design Files", "Documents"][index % 4],
-    icon: extraFileIcons[variant],
-    iconClassName: extraFileStyles[variant],
+    id: item.id,
+    name: item.name,
+    meta: formatBytes(item.size),
+    updatedAt: formatDate(item.deleted_at),
+    owner: "You",
+    size: formatBytes(item.size),
+    sizeBytes: item.size || 0,
+    location: item.folder ? item.folder.name : "My Files",
+    icon: getIcon(item.mime_type || "", false, item.name),
+    iconClassName: getIconClassName(item.mime_type || "", false, item.name),
+    isFolder: false,
+    tags: (item.tags || []).map((t: any) => t.name as string),
   }
-})
+}
 
-const deletedFiles = [...baseDeletedFiles, ...generatedDeletedFiles]
-
-function parseSizeToBytes(size: string) {
-  const match = size.trim().match(/^(\d+(?:\.\d+)?)\s*(KB|MB|GB)$/i)
-
-  if (!match) return 0
-
-  const value = Number(match[1])
-  const unit = match[2].toUpperCase()
-
-  if (unit === "KB") return value * 1024
-  if (unit === "MB") return value * 1024 * 1024
-  return value * 1024 * 1024 * 1024
+function formatTrashFolder(item: any) {
+  return {
+    id: item.id,
+    name: item.name,
+    meta: "Folder",
+    updatedAt: formatDate(item.deleted_at),
+    owner: "You",
+    size: "-",
+    sizeBytes: 0,
+    location: item.parent ? item.parent.name : "My Files",
+    icon: getIcon("", true, item.name),
+    iconClassName: getIconClassName("", true, item.name),
+    isFolder: true,
+  }
 }
 
 export function TrashSection() {
   const [isListView, setIsListView] = useState(true)
   const [fileFilter, setFileFilter] = useState<FileFilterOption>("none")
+  const [items, setItems] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    id: string
+    isFolder: boolean
+  } | null>(null)
+  const [isBulkRestoreConfirmOpen, setIsBulkRestoreConfirmOpen] =
+    useState(false)
+  const [isBulkDeleteConfirmOpen, setIsBulkDeleteConfirmOpen] = useState(false)
+  const [isBulkActionLoading, setIsBulkActionLoading] = useState(false)
+
+  useEffect(() => {
+    async function fetchTrash() {
+      const cached = localStorage.getItem("zipher_cache_trash")
+      if (cached) {
+        try {
+          const raw = JSON.parse(cached)
+          setItems([
+            ...(raw.folders || []).map(formatTrashFolder),
+            ...(raw.files || []).map(formatTrashFile),
+          ])
+          setIsLoading(false)
+        } catch {}
+      } else {
+        setIsLoading(true)
+      }
+
+      const token = localStorage.getItem("zipher_token")
+      if (!token) return
+
+      try {
+        const [filesRes, foldersRes] = await Promise.all([
+          fetch(`${API_BASE}/api/v1/files/trash`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/json",
+            },
+          }),
+          fetch(`${API_BASE}/api/v1/folders/trash`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/json",
+            },
+          }),
+        ])
+
+        const filesData = await filesRes.json()
+        const foldersData = await foldersRes.json()
+
+        const formattedFiles = (filesData.data || []).map(formatTrashFile)
+        const formattedFolders = (foldersData.data || []).map(formatTrashFolder)
+
+        setItems([...formattedFolders, ...formattedFiles])
+        localStorage.setItem(
+          "zipher_cache_trash",
+          JSON.stringify({
+            files: filesData.data || [],
+            folders: foldersData.data || [],
+          })
+        )
+      } catch (error) {
+        console.error("Failed to fetch trash:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchTrash()
+
+    window.addEventListener("contents-updated", fetchTrash)
+    return () => window.removeEventListener("contents-updated", fetchTrash)
+  }, [])
 
   const filteredFiles = useMemo(() => {
-    const next = [...deletedFiles]
+    const next = [...items]
 
     if (fileFilter === "smallest") {
-      next.sort((a, b) => parseSizeToBytes(a.size) - parseSizeToBytes(b.size))
+      next.sort((a, b) => a.sizeBytes - b.sizeBytes)
       return next
     }
 
     if (fileFilter === "largest") {
-      next.sort((a, b) => parseSizeToBytes(b.size) - parseSizeToBytes(a.size))
+      next.sort((a, b) => b.sizeBytes - a.sizeBytes)
       return next
     }
 
     if (fileFilter === "folder-first") {
       next.sort((a, b) => {
-        const aIsFolder = a.meta.startsWith("Folder")
-        const bIsFolder = b.meta.startsWith("Folder")
-
-        if (aIsFolder === bIsFolder) return a.name.localeCompare(b.name)
-        return aIsFolder ? -1 : 1
+        if (a.isFolder === b.isFolder) return a.name.localeCompare(b.name)
+        return a.isFolder ? -1 : 1
       })
       return next
     }
 
-    return deletedFiles
-  }, [fileFilter])
+    return items
+  }, [fileFilter, items])
+
+  const handleRestore = async (id: string, isFolder: boolean) => {
+    const token = localStorage.getItem("zipher_token")
+    const endpoint = isFolder ? `folders/${id}/restore` : `files/${id}/restore`
+
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/${endpoint}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      })
+      if (response.ok) {
+        window.dispatchEvent(new Event("contents-updated"))
+      }
+    } catch (error) {
+      console.error("Failed to restore:", error)
+    }
+  }
+
+  const handleForceDelete = async () => {
+    if (!deleteConfirm) return
+
+    const { id, isFolder } = deleteConfirm
+    const token = localStorage.getItem("zipher_token")
+    const endpoint = isFolder ? `folders/${id}/force` : `files/${id}/force`
+
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/${endpoint}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      })
+      if (response.ok) {
+        window.dispatchEvent(new Event("contents-updated"))
+        setDeleteConfirm(null)
+      }
+    } catch (error) {
+      console.error("Failed to force delete:", error)
+    }
+  }
+
+  const handleRestoreAll = async () => {
+    const token = localStorage.getItem("zipher_token")
+    if (!token || items.length === 0) return
+
+    setIsBulkActionLoading(true)
+    try {
+      await Promise.all(
+        items.map((item) => {
+          const endpoint = item.isFolder
+            ? `folders/${item.id}/restore`
+            : `files/${item.id}/restore`
+          return fetch(`${API_BASE}/api/v1/${endpoint}`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/json",
+            },
+          })
+        })
+      )
+      window.dispatchEvent(new Event("contents-updated"))
+      setIsBulkRestoreConfirmOpen(false)
+    } catch (error) {
+      console.error("Failed to restore all:", error)
+    } finally {
+      setIsBulkActionLoading(false)
+    }
+  }
+
+  const handleDeleteAll = async () => {
+    const token = localStorage.getItem("zipher_token")
+    if (!token || items.length === 0) return
+
+    setIsBulkActionLoading(true)
+    try {
+      await Promise.all(
+        items.map((item) => {
+          const endpoint = item.isFolder
+            ? `folders/${item.id}/force`
+            : `files/${item.id}/force`
+          return fetch(`${API_BASE}/api/v1/${endpoint}`, {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/json",
+            },
+          })
+        })
+      )
+      window.dispatchEvent(new Event("contents-updated"))
+      setIsBulkDeleteConfirmOpen(false)
+    } catch (error) {
+      console.error("Failed to delete all:", error)
+    } finally {
+      setIsBulkActionLoading(false)
+    }
+  }
 
   return (
     <section>
       <div className="sticky top-0 z-30 -mx-4 h-20 bg-background px-4 md:-mx-6 md:px-6">
         <div className="grid h-full grid-cols-[1fr_auto] items-center gap-3">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              Trash
-            </h1>
-            <p className="text-sm text-muted-foreground">Deleted files and documents</p>
+            <h1 className="text-2xl font-semibold tracking-tight">Trash</h1>
+            <p className="text-sm text-muted-foreground">
+              File dan folder yang dihapus.
+            </p>
           </div>
 
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={items.length === 0 || isLoading}
+              onClick={() => setIsBulkRestoreConfirmOpen(true)}
+            >
+              Pulihkan Semua
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={items.length === 0 || isLoading}
+              onClick={() => setIsBulkDeleteConfirmOpen(true)}
+            >
+              Hapus Semua
+            </Button>
+            <div className="mx-1 h-6 w-px bg-border" />
             <FileLayoutSwitch
               isList={isListView}
               onCheckedChange={setIsListView}
@@ -186,28 +306,122 @@ export function TrashSection() {
         </div>
       </div>
 
-      {isListView ? (
+      {isLoading ? (
+        <div className="flex h-40 items-center justify-center">
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      ) : items.length === 0 ? (
+        <div className="flex h-40 flex-col items-center justify-center">
+          <p className="text-muted-foreground">Trash kosong</p>
+        </div>
+      ) : isListView ? (
         <FilesListTable
           files={filteredFiles}
           activeFilter={fileFilter}
           onFilterChange={setFileFilter}
           showTrashActions={true}
+          onRestore={handleRestore}
+          onForceDelete={(id, isFolder) => setDeleteConfirm({ id, isFolder })}
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filteredFiles.map((file) => (
             <FileCard
-              key={file.name}
+              key={file.id}
+              id={file.id}
               name={file.name}
               meta={file.meta}
               updatedAt={file.updatedAt}
               icon={file.icon}
               iconClassName={file.iconClassName}
+              tags={file.tags}
               layout="grid"
+              isFolder={file.isFolder}
+              onRestore={handleRestore}
+              onForceDelete={(id, isFolder) =>
+                setDeleteConfirm({ id, isFolder })
+              }
             />
           ))}
         </div>
       )}
+
+      <Dialog
+        open={!!deleteConfirm}
+        onOpenChange={(open) => !open && setDeleteConfirm(null)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Hapus Selamanya?</DialogTitle>
+            <DialogDescription>
+              Tindakan ini tidak dapat dibatalkan. Item akan dihapus secara
+              permanen dari storage Anda.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>
+              Batal
+            </Button>
+            <Button variant="destructive" onClick={handleForceDelete}>
+              Hapus Permanen
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={isBulkRestoreConfirmOpen}
+        onOpenChange={(open) => !open && setIsBulkRestoreConfirmOpen(false)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Pulihkan Semua Item?</DialogTitle>
+            <DialogDescription>
+              Semua file di Trash akan dikembalikan ke lokasi asalnya.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setIsBulkRestoreConfirmOpen(false)}
+            >
+              Batal
+            </Button>
+            <Button disabled={isBulkActionLoading} onClick={handleRestoreAll}>
+              {isBulkActionLoading ? "Memproses..." : "Pulihkan Semua"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={isBulkDeleteConfirmOpen}
+        onOpenChange={(open) => !open && setIsBulkDeleteConfirmOpen(false)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Kosongkan Trash?</DialogTitle>
+            <DialogDescription>
+              Semua file di Trash akan dihapus secara permanen.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setIsBulkDeleteConfirmOpen(false)}
+            >
+              Batal
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={isBulkActionLoading}
+              onClick={handleDeleteAll}
+            >
+              {isBulkActionLoading ? "Memproses..." : "Hapus Permanen"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   )
 }

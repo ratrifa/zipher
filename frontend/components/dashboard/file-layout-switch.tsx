@@ -23,7 +23,7 @@ export function FileLayoutSwitch({
           isList ? "bg-sky-100 text-sky-900" : "bg-background text-foreground",
         ].join(" ")}
         aria-pressed={isList}
-        aria-label="List layout"
+        aria-label="Tampilan daftar"
       >
         {isList ? <Check className="size-3.5" /> : null}
         <List className="size-3.5" />
@@ -37,7 +37,7 @@ export function FileLayoutSwitch({
           isGrid ? "bg-sky-100 text-sky-900" : "bg-background text-foreground",
         ].join(" ")}
         aria-pressed={isGrid}
-        aria-label="Grid layout"
+        aria-label="Tampilan grid"
       >
         {isGrid ? <Check className="size-3.5" /> : null}
         <LayoutGrid className="size-3.5" />

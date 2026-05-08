@@ -17,6 +17,9 @@ return new class extends Migration
             $table->text('aes_key_encrypted');
             $table->foreignUuid('user_id')->constrained()->onDelete('cascade');
             $table->foreignUuid('folder_id')->nullable()->constrained()->onDelete('cascade');
+            $table->boolean('is_starred')->default(false);
+            $table->softDeletes();
+            $table->uuid('trashed_with_parent_id')->nullable();
             $table->timestamps();
         });
     }

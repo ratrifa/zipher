@@ -12,7 +12,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
-#[Fillable(['username', 'email', 'password', 'public_key', 'storage_limit', 'role', 'is_banned'])]
+#[Fillable(['username', 'email', 'password', 'avatar', 'public_key', 'storage_limit'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -35,7 +35,7 @@ class User extends Authenticatable
 
     public function storageUsed(): int
     {
-        return (int) $this->files()->sum('size');
+        return (int) $this->files()->withTrashed()->sum('size');
     }
 
     public function files()

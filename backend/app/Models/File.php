@@ -35,4 +35,9 @@ class File extends Model
     {
         return $this->hasMany(FileTag::class)->orderBy('score', 'desc');
     }
+
+    public function keywords()
+    {
+        return $this->hasMany(FileKeyword::class);
+    }
 }
