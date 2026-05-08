@@ -1,6 +1,14 @@
 "use client"
 
+import { API_BASE } from "@/lib/api"
+import {
+  getIcon,
+  getIconClassName,
+  formatBytes,
+  formatDate,
+} from "@/lib/utils/file-utils"
 import { useMemo, useState, useEffect } from "react"
+import { useAppDialog } from "@/hooks/use-app-dialog"
 import {
   FileCode2,
   FileImage,
@@ -15,7 +23,10 @@ import {
 } from "lucide-react"
 
 import { FileCard } from "@/components/dashboard/file-card"
-import { FilePreviewContent, isTextDecodable } from "@/components/dashboard/file-preview-content"
+import {
+  FilePreviewContent,
+  isTextDecodable,
+} from "@/components/dashboard/file-preview-content"
 import { FileLayoutSwitch } from "@/components/dashboard/file-layout-switch"
 import {
   FilesListTable,
@@ -39,107 +50,61 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { PrivateKeyDialog } from "@/components/dashboard/private-key-dialog"
+import { ReportDialog } from "@/components/dashboard/report-dialog"
 import {
-  importPrivateKey,
   importAESKey,
+  importPublicKey,
   decryptAESKey,
+  encryptAESKey,
   decryptData,
   loadPrivateKey,
 } from "@/lib/crypto"
 import axios from "axios"
 
-function getIcon(mimeType: string, isFolder: boolean, fileName: string = "") {
-  if (isFolder) return Folder
-
-  const lowerName = fileName.toLowerCase()
-  const isCode =
-    lowerName.endsWith(".md") ||
-    lowerName.endsWith(".ts") ||
-    lowerName.endsWith(".tsx") ||
-    lowerName.endsWith(".js") ||
-    lowerName.endsWith(".py") ||
-    lowerName.endsWith(".json") ||
-    mimeType?.includes("javascript") ||
-    mimeType?.includes("typescript") ||
-    mimeType?.includes("markdown")
-
-  if (isCode) return FileCode2
-  if (mimeType?.includes("image")) return FileImage
-  if (
-    mimeType?.includes("spreadsheet") ||
-    mimeType?.includes("excel") ||
-    mimeType?.includes("csv")
-  )
-    return FileSpreadsheet
-  if (mimeType?.includes("presentation") || mimeType?.includes("powerpoint"))
-    return Presentation
-  if (
-    mimeType?.includes("pdf") ||
-    mimeType?.includes("word") ||
-    mimeType?.includes("officedocument.wordprocessingml") ||
-    mimeType?.includes("text")
-  )
-    return FileText
-  return FileIcon
+function formatReceivedItem(share: any) {
+  const item = share.file
+  return {
+    id: item.id,
+    shareId: share.id,
+    name: item.name,
+    meta: `${item.mime_type} • ${formatBytes(item.size)}`,
+    updatedAt: formatDate(share.shared_at),
+    owner: share.owner?.username || "Unknown",
+    sharedBy: share.owner?.email || "Unknown",
+    size: formatBytes(item.size),
+    sizeBytes: item.size || 0,
+    location: "Diterima",
+    icon: getIcon(item.mime_type || "", false, item.name),
+    iconClassName: getIconClassName(item.mime_type || "", false, item.name),
+    isFolder: false,
+    isStarred: !!item.is_starred,
+    section: "received",
+  }
 }
 
-function getIconClassName(
-  mimeType: string,
-  isFolder: boolean,
-  fileName: string = ""
-) {
-  if (isFolder) return "bg-blue-100 text-blue-700"
-
-  const lowerName = fileName.toLowerCase()
-  const isCode =
-    lowerName.endsWith(".md") ||
-    lowerName.endsWith(".ts") ||
-    lowerName.endsWith(".tsx") ||
-    lowerName.endsWith(".js") ||
-    lowerName.endsWith(".py") ||
-    lowerName.endsWith(".json") ||
-    mimeType?.includes("javascript") ||
-    mimeType?.includes("typescript") ||
-    mimeType?.includes("markdown")
-
-  if (isCode) return "bg-slate-100 text-slate-700"
-  if (mimeType?.includes("image")) return "bg-violet-100 text-violet-700"
-  if (
-    mimeType?.includes("spreadsheet") ||
-    mimeType?.includes("excel") ||
-    mimeType?.includes("csv")
-  )
-    return "bg-emerald-100 text-emerald-700"
-  if (mimeType?.includes("presentation") || mimeType?.includes("powerpoint"))
-    return "bg-rose-100 text-rose-700"
-  if (mimeType?.includes("pdf")) return "bg-orange-100 text-orange-700"
-  if (
-    mimeType?.includes("word") ||
-    mimeType?.includes("officedocument.wordprocessingml")
-  )
-    return "bg-sky-100 text-sky-700"
-  if (mimeType?.includes("text")) return "bg-slate-100 text-slate-700"
-  return "bg-slate-100 text-slate-700"
-}
-
-function formatBytes(bytes: number, decimals = 1) {
-  if (bytes === 0) return "0 B"
-  const k = 1024
-  const dm = decimals < 0 ? 0 : decimals
-  const sizes = ["B", "KB", "MB", "GB", "TB"]
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i]
-}
-
-function formatDate(dateString: string) {
-  const date = new Date(dateString)
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  })
+function formatSentItem(share: any) {
+  const item = share.file
+  return {
+    id: item.id,
+    shareId: share.id,
+    name: item.name,
+    meta: `${item.mime_type} • ${formatBytes(item.size)}`,
+    updatedAt: formatDate(share.shared_at),
+    owner: share.receiver?.username || share.receiver?.email || "Unknown",
+    sharedWith: share.receiver?.username || share.receiver?.email || "Unknown",
+    size: formatBytes(item.size),
+    sizeBytes: item.size || 0,
+    location: `Dibagikan ke ${share.receiver?.username || "seseorang"}`,
+    icon: getIcon(item.mime_type || "", false, item.name),
+    iconClassName: getIconClassName(item.mime_type || "", false, item.name),
+    isFolder: false,
+    isStarred: !!item.is_starred,
+    section: "sent",
+  }
 }
 
 export function SharingSection() {
+  const { showAlert, showConfirm } = useAppDialog()
   const [isListView, setIsListView] = useState(true)
   const [fileFilter, setFileFilter] = useState<FileFilterOption>("none")
   const [items, setItems] = useState<any[]>([])
@@ -147,8 +112,19 @@ export function SharingSection() {
 
   const [privateKeyDialogOpen, setPrivateKeyDialogOpen] = useState(false)
   const [targetFile, setTargetFile] = useState<any>(null)
+  const [pendingSave, setPendingSave] = useState<{
+    id: string
+    name: string
+  } | null>(null)
   const [isOpening, setIsOpening] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const [reportDialogOpen, setReportDialogOpen] = useState(false)
+  const [reportingItem, setReportingItem] = useState<any>(null)
+  const [reportedShareIds, setReportedShareIds] = useState<Set<string>>(
+    new Set()
+  )
 
   const [previewItem, setPreviewItem] = useState<{
     name: string
@@ -158,19 +134,32 @@ export function SharingSection() {
   } | null>(null)
 
   const fetchShared = async () => {
+    const cached = localStorage.getItem("zipher_cache_sharing")
+    if (cached) {
+      try {
+        const raw = JSON.parse(cached)
+        setItems([
+          ...(raw.received || []).map(formatReceivedItem),
+          ...(raw.sent || []).map(formatSentItem),
+        ])
+        setIsLoading(false)
+      } catch {}
+    } else {
+      setIsLoading(true)
+    }
+
     const token = localStorage.getItem("zipher_token")
     if (!token) return
 
-    setIsLoading(true)
     try {
       const [resReceived, resSent] = await Promise.all([
-        fetch("http://localhost:8000/api/v1/shared/with-me", {
+        fetch(`${API_BASE}/api/v1/shared/with-me`, {
           headers: {
             Authorization: `Bearer ${token}`,
             Accept: "application/json",
           },
         }),
-        fetch("http://localhost:8000/api/v1/shared/by-me", {
+        fetch(`${API_BASE}/api/v1/shared/by-me`, {
           headers: {
             Authorization: `Bearer ${token}`,
             Accept: "application/json",
@@ -181,58 +170,17 @@ export function SharingSection() {
       const dataReceived = await resReceived.json()
       const dataSent = await resSent.json()
 
-      const formattedReceived = (dataReceived.data || []).map((share: any) => {
-        const item = share.file
-        return {
-          id: item.id,
-          shareId: share.id,
-          name: item.name,
-          meta: `${item.mime_type} • ${formatBytes(item.size)}`,
-          updatedAt: formatDate(share.shared_at),
-          owner: share.owner?.username || "Unknown",
-          sharedBy: share.owner?.email || "Unknown",
-          size: formatBytes(item.size),
-          sizeBytes: item.size || 0,
-          location: "Diterima",
-          icon: getIcon(item.mime_type || "", false, item.name),
-          iconClassName: getIconClassName(
-            item.mime_type || "",
-            false,
-            item.name
-          ),
-          isFolder: false,
-          isStarred: !!item.is_starred,
-          section: "received",
-        }
-      })
-
-      const formattedSent = (dataSent.data || []).map((share: any) => {
-        const item = share.file
-        return {
-          id: item.id,
-          shareId: share.id,
-          name: item.name,
-          meta: `${item.mime_type} • ${formatBytes(item.size)}`,
-          updatedAt: formatDate(share.shared_at),
-          owner: "You",
-          sharedWith:
-            share.receiver?.username || share.receiver?.email || "Unknown",
-          size: formatBytes(item.size),
-          sizeBytes: item.size || 0,
-          location: `Dibagikan ke ${share.receiver?.username || "seseorang"}`,
-          icon: getIcon(item.mime_type || "", false, item.name),
-          iconClassName: getIconClassName(
-            item.mime_type || "",
-            false,
-            item.name
-          ),
-          isFolder: false,
-          isStarred: !!item.is_starred,
-          section: "sent",
-        }
-      })
-
-      setItems([...formattedReceived, ...formattedSent])
+      setItems([
+        ...(dataReceived.data || []).map(formatReceivedItem),
+        ...(dataSent.data || []).map(formatSentItem),
+      ])
+      localStorage.setItem(
+        "zipher_cache_sharing",
+        JSON.stringify({
+          received: dataReceived.data || [],
+          sent: dataSent.data || [],
+        })
+      )
     } catch (error) {
       console.error("Failed to fetch shared files:", error)
     } finally {
@@ -244,9 +192,9 @@ export function SharingSection() {
     fetchShared()
   }, [])
 
-  const handleOpen = (id: string, name: string) => {
+  const handleOpen = async (id: string, name: string) => {
     setTargetFile({ id, name })
-    const privateKey = loadPrivateKey()
+    const privateKey = await loadPrivateKey()
     if (!privateKey) {
       setPrivateKeyDialogOpen(true)
     } else {
@@ -256,11 +204,11 @@ export function SharingSection() {
 
   const handleDownload = async (id: string, name: string) => {
     const token = localStorage.getItem("zipher_token")
-    const privateKeyPem = loadPrivateKey()
+    const privateKey = await loadPrivateKey()
 
     try {
       const response = await axios.get(
-        `http://localhost:8000/api/v1/files/${id}/download`,
+        `${API_BASE}/api/v1/files/${id}/download`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -271,15 +219,11 @@ export function SharingSection() {
       const data = response.data
 
       if (data.encrypted_data && data.aes_key_encrypted) {
-        if (
-          privateKeyPem &&
-          data.aes_key_encrypted !== "placeholder_encrypted_key"
-        ) {
+        if (privateKey) {
           try {
-            const privKey = await importPrivateKey(privateKeyPem)
             const aesKeyStr = await decryptAESKey(
               data.aes_key_encrypted,
-              privKey
+              privateKey
             )
             const aesKey = await importAESKey(aesKeyStr)
 
@@ -321,15 +265,18 @@ export function SharingSection() {
         ? "Apakah Anda yakin ingin menghapus file ini dari daftar dibagikan? Anda akan kehilangan akses ke file ini."
         : "Apakah Anda yakin ingin membatalkan sharing file ini? Penerima akan kehilangan akses."
 
-    if (!confirm(confirmMsg)) return
+    const ok = await showConfirm("Konfirmasi", confirmMsg, {
+      destructive: true,
+    })
+    if (!ok) return
 
     const token = localStorage.getItem("zipher_token")
 
     try {
       const url =
         item.section === "received"
-          ? `http://localhost:8000/api/v1/shared/received/${item.shareId}`
-          : `http://localhost:8000/api/v1/share/${item.shareId}`
+          ? `${API_BASE}/api/v1/shared/received/${item.shareId}`
+          : `${API_BASE}/api/v1/share/${item.shareId}`
 
       const response = await fetch(url, {
         method: "DELETE",
@@ -339,19 +286,116 @@ export function SharingSection() {
         },
       })
       if (response.ok) {
-        setItems((items) =>
-          items.filter((i) => i.shareId !== item.shareId)
-        )
+        setItems((items) => items.filter((i) => i.shareId !== item.shareId))
       }
     } catch (error) {
       console.error("Failed to revoke access:", error)
     }
   }
 
+  function handleReport(id: string) {
+    const item = items.find((i) => i.id === id)
+    if (!item) return
+    setReportingItem(item)
+    setReportDialogOpen(true)
+  }
+
+  async function submitReport(reason: string) {
+    if (!reportingItem) return
+    const token = localStorage.getItem("zipher_token")
+    const res = await fetch(`${API_BASE}/api/v1/reports`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ share_id: reportingItem.shareId, reason }),
+    })
+    const json = await res.json()
+    if (!res.ok) throw new Error(json.message || "Gagal mengirim laporan.")
+    setReportedShareIds((prev) => new Set(prev).add(reportingItem.shareId))
+  }
+
+  const doSaveToMyFiles = async (
+    id: string,
+    name: string,
+    privKey: CryptoKey
+  ) => {
+    setIsSaving(true)
+    const token = localStorage.getItem("zipher_token")
+    try {
+      const dlRes = await axios.get(`${API_BASE}/api/v1/files/${id}/download`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      })
+      const data = dlRes.data
+
+      const rawAesKey = await decryptAESKey(data.aes_key_encrypted, privKey)
+
+      const meRes = await fetch(`${API_BASE}/api/v1/me`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      })
+      const meData = await meRes.json()
+      const pubKey = await importPublicKey(meData.data.public_key)
+      const newAesKeyEncrypted = await encryptAESKey(rawAesKey, pubKey)
+
+      const encryptedBytes = Uint8Array.from(atob(data.encrypted_data), (c) =>
+        c.charCodeAt(0)
+      )
+      const blob = new Blob([encryptedBytes], { type: data.mime_type })
+
+      const formData = new FormData()
+      formData.append("file", blob, name)
+      formData.append("name", name)
+      formData.append("mime_type", data.mime_type)
+      formData.append("aes_key_encrypted", newAesKeyEncrypted)
+      if (data.tags?.length) {
+        formData.append(
+          "tags",
+          JSON.stringify(
+            data.tags.map((t: any) => ({ name: t.name, score: t.score }))
+          )
+        )
+      }
+
+      await axios.post(`${API_BASE}/api/v1/files/upload`, formData, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
+      window.dispatchEvent(new Event("contents-updated"))
+    } catch (err) {
+      console.error("Save to My Files failed:", err)
+    } finally {
+      setIsSaving(false)
+      setPendingSave(null)
+    }
+  }
+
+  const handleSaveToMyFiles = async (
+    id: string,
+    name: string,
+    isFolder: boolean
+  ) => {
+    if (isFolder) return
+    const privKey = await loadPrivateKey()
+    if (!privKey) {
+      setPendingSave({ id, name })
+      setPrivateKeyDialogOpen(true)
+      return
+    }
+    doSaveToMyFiles(id, name, privKey)
+  }
+
   const decryptAndPreview = async (
     fileId: string,
     fileName: string,
-    privKeyPem: string
+    privKey: CryptoKey
   ) => {
     setIsOpening(true)
     setError(null)
@@ -359,7 +403,7 @@ export function SharingSection() {
 
     try {
       const response = await fetch(
-        `http://localhost:8000/api/v1/files/${fileId}/download?intent=preview`,
+        `${API_BASE}/api/v1/files/${fileId}/download?intent=preview`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -389,7 +433,6 @@ export function SharingSection() {
 
       let aesKeyStr: string
       try {
-        const privKey = await importPrivateKey(privKeyPem)
         aesKeyStr = await decryptAESKey(data.aes_key_encrypted, privKey)
       } catch (err) {
         throw new Error(
@@ -417,7 +460,7 @@ export function SharingSection() {
       })
     } catch (err: any) {
       setError(err.message)
-      alert(err.message)
+      showAlert("Error", err.message)
     } finally {
       setIsOpening(false)
     }
@@ -436,8 +479,11 @@ export function SharingSection() {
   }, [fileFilter, items])
 
   const receivedItems = useMemo(
-    () => filteredFiles.filter((i) => i.section === "received"),
-    [filteredFiles]
+    () =>
+      filteredFiles
+        .filter((i) => i.section === "received")
+        .map((i) => ({ ...i, isReported: reportedShareIds.has(i.shareId) })),
+    [filteredFiles, reportedShareIds]
   )
   const sentItems = useMemo(
     () => filteredFiles.filter((i) => i.section === "sent"),
@@ -452,7 +498,7 @@ export function SharingSection() {
         <div className="mb-4 pt-4">
           <h1 className="text-2xl font-semibold tracking-tight">Sharing</h1>
           <p className="text-sm text-muted-foreground">
-            Kelola file yang Anda terima dan bagikan ke orang lain.
+            File yang dibagi dan diterima.
           </p>
         </div>
 
@@ -496,10 +542,9 @@ export function SharingSection() {
                   onOpen={handleOpen}
                   onDownload={handleDownload}
                   onDelete={handleDelete}
-                  onMove={(id, name, isFolder) => {
-                    alert("Fitur 'Save to My Files' akan segera hadir!")
-                  }}
-                  moveLabel="Save to My Files"
+                  onMove={handleSaveToMyFiles}
+                  onReport={handleReport}
+                  moveLabel="Simpan ke File Saya"
                 />
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -518,10 +563,10 @@ export function SharingSection() {
                       onOpen={handleOpen}
                       onDownload={handleDownload}
                       onDelete={handleDelete}
-                      onMove={(id, name, isFolder) => {
-                        alert("Fitur 'Save to My Files' akan segera hadir!")
-                      }}
-                      moveLabel="Save to My Files"
+                      onMove={handleSaveToMyFiles}
+                      onReport={handleReport}
+                      isReported={file.isReported}
+                      moveLabel="Simpan ke File Saya"
                     />
                   ))}
                 </div>
@@ -550,6 +595,7 @@ export function SharingSection() {
                   onDownload={handleDownload}
                   onDelete={handleDelete}
                   moveLabel="Move"
+                  ownerLabel="Penerima"
                 />
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -589,9 +635,12 @@ export function SharingSection() {
       <PrivateKeyDialog
         open={privateKeyDialogOpen}
         onOpenChange={setPrivateKeyDialogOpen}
-        onConfirm={() => {
-          const key = loadPrivateKey()
-          if (key && targetFile) {
+        onConfirm={async () => {
+          const key = await loadPrivateKey()
+          if (!key) return
+          if (pendingSave) {
+            doSaveToMyFiles(pendingSave.id, pendingSave.name, key)
+          } else if (targetFile) {
             decryptAndPreview(targetFile.id, targetFile.name, key)
           }
         }}
@@ -599,7 +648,13 @@ export function SharingSection() {
 
       <Dialog
         open={!!previewItem}
-        onOpenChange={(open) => !open && setPreviewItem(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            if (previewItem?.url?.startsWith("blob:"))
+              URL.revokeObjectURL(previewItem.url)
+            setPreviewItem(null)
+          }
+        }}
       >
         <DialogContent className="flex h-[90vh] flex-col overflow-hidden p-0 sm:max-w-4xl">
           <DialogHeader className="flex flex-none flex-row items-center justify-between space-y-0 border-b p-4">
@@ -618,6 +673,13 @@ export function SharingSection() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ReportDialog
+        open={reportDialogOpen}
+        onOpenChange={setReportDialogOpen}
+        fileName={reportingItem?.name ?? ""}
+        onSubmit={submitReport}
+      />
     </section>
   )
 }

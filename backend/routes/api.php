@@ -7,6 +7,7 @@ use App\Http\Controllers\FolderController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RecentController;
 use App\Http\Controllers\SearchController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ShareController;
 use Illuminate\Support\Facades\Route;
 
@@ -15,6 +16,7 @@ Route::prefix('v1')->group(function () {
     Route::post('register', [AuthController::class, 'register']);
     Route::post('login', [AuthController::class, 'login']);
     Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
+    Route::post('verify-reset-key', [AuthController::class, 'verifyResetKey']);
     Route::post('reset-password', [AuthController::class, 'resetPassword']);
 
     Route::middleware('auth:sanctum')->group(function () {
@@ -34,6 +36,7 @@ Route::prefix('v1')->group(function () {
         Route::get('recent', [RecentController::class, 'index']);
 
         // Files
+        Route::get('storage/breakdown', [FileController::class, 'storageBreakdown']);
         Route::get('files/trash', [FileController::class, 'trash']);
         Route::get('files/starred', [FileController::class, 'starred']);
         Route::post('files/{id}/star', [FileController::class, 'toggleStar']);
@@ -72,5 +75,8 @@ Route::prefix('v1')->group(function () {
         Route::get('shared/by-me', [ShareController::class, 'sharedByMe']);
         Route::delete('share/{id}', [ShareController::class, 'revoke']);
         Route::delete('shared/received/{id}', [ShareController::class, 'leave']);
+
+        // Reports
+        Route::post('reports', [ReportController::class, 'store']);
     });
 });

@@ -15,9 +15,11 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->string('username')->unique();
             $table->string('email')->unique();
+            $table->string('avatar')->nullable();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
             $table->text('public_key')->nullable();
+            $table->unsignedBigInteger('storage_limit')->default(34359738368);
             $table->rememberToken();
             $table->timestamps();
         });

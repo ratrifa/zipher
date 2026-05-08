@@ -1,5 +1,7 @@
 "use client"
 
+import { API_BASE } from "@/lib/api"
+import { formatBytes } from "@/lib/utils/file-utils"
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -7,6 +9,7 @@ import { Clock3, Home, Star, Trash2, Users } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
+import { StorageDialog } from "@/components/dashboard/storage-dialog"
 
 const menuItems = [
   {
@@ -37,17 +40,20 @@ const menuItems = [
   },
 ]
 
-function formatBytes(bytes: number, decimals = 1) {
-  if (bytes === 0) return "0 B"
-  const k = 1024
-  const dm = decimals < 0 ? 0 : decimals
-  const sizes = ["B", "KB", "MB", "GB", "TB"]
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i]
-}
 export function DashboardSidebar() {
   const pathname = usePathname()
-  const [storage, setStorage] = useState({ used: 0, limit: 32 * 1024 * 1024 * 1024 }) // 32GB
+  const [storage, setStorage] = useState(() => {
+    try {
+      const cached = localStorage.getItem("zipher_user")
+      if (cached) {
+        const u = JSON.parse(cached)
+        if (u.storage_used != null && u.storage_limit != null) {
+          return { used: u.storage_used, limit: u.storage_limit }
+        }
+      }
+    } catch {}
+    return { used: 0, limit: 32 * 1024 * 1024 * 1024 }
+  })
 
   useEffect(() => {
     async function fetchStorage() {
@@ -55,7 +61,7 @@ export function DashboardSidebar() {
       if (!token) return
 
       try {
-        const response = await fetch("http://localhost:8000/api/v1/me", {
+        const response = await fetch(`${API_BASE}/api/v1/me`, {
           headers: {
             Authorization: `Bearer ${token}`,
             Accept: "application/json",
@@ -80,6 +86,7 @@ export function DashboardSidebar() {
     return () => window.removeEventListener("contents-updated", fetchStorage)
   }, [])
 
+  const [storageDialogOpen, setStorageDialogOpen] = useState(false)
   const progressValue = (storage.used / storage.limit) * 100
 
   return (
@@ -113,7 +120,10 @@ export function DashboardSidebar() {
         })}
       </nav>
 
-      <div className="mt-6 border-t border-sidebar-border px-2 pt-4 pb-2">
+      <button
+        onClick={() => setStorageDialogOpen(true)}
+        className="mt-6 w-full cursor-pointer rounded-lg border border-sidebar-border px-2 pt-4 pb-2 text-left transition-colors hover:bg-sidebar-accent/40"
+      >
         <p className="text-sm font-medium text-sidebar-foreground/80">
           Storage
         </p>
@@ -124,7 +134,13 @@ export function DashboardSidebar() {
         <p className="mt-3 text-sm text-sidebar-foreground/70">
           {formatBytes(storage.used)} of {formatBytes(storage.limit)} used
         </p>
-      </div>
+      </button>
+
+      <StorageDialog
+        open={storageDialogOpen}
+        onOpenChange={setStorageDialogOpen}
+        storage={storage}
+      />
     </aside>
   )
 }

@@ -13,6 +13,8 @@ class SharedFile extends Model
 
     public $timestamps = false;
 
+    protected $casts = ['shared_at' => 'datetime'];
+
     public function file()
     {
         return $this->belongsTo(File::class);

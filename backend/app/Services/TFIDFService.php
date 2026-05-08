@@ -5,6 +5,7 @@ namespace App\Services;
 class TFIDFService
 {
     private array $stopWords = [
+        // English
         'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
         'of', 'with', 'by', 'from', 'is', 'it', 'this', 'that', 'was', 'are',
         'be', 'as', 'we', 'our', 'you', 'your', 'they', 'their', 'its', 'not',
@@ -14,9 +15,22 @@ class TFIDFService
         'she', 'him', 'his', 'her', 'up', 'out', 'so', 'if', 'then', 'into',
         'about', 'after', 'before', 'through', 'over', 'between', 'such', 'no',
         'my', 'me', 'i', 'we', 'us', 'any', 'some', 'same', 'other', 'these',
-        'those', 'de', 'yang', 'dan', 'atau', 'di', 'ke', 'dari', 'ini', 'itu',
+        'those', 'just', 'very', 'much', 'many', 'most', 'few', 'get', 'got',
+        'make', 'made', 'take', 'come', 'like', 'use', 'used', 'one', 'two',
+        'new', 'good', 'first', 'last', 'long', 'great', 'little', 'own',
+        // Indonesian
+        'yang', 'dan', 'atau', 'di', 'ke', 'dari', 'ini', 'itu', 'apa', 'agar',
         'dengan', 'untuk', 'pada', 'oleh', 'dalam', 'adalah', 'akan', 'ada',
         'tidak', 'juga', 'sudah', 'bisa', 'saya', 'kami', 'kita', 'mereka',
+        'jika', 'maka', 'tapi', 'tetapi', 'namun', 'karena', 'sebab', 'bahwa',
+        'seperti', 'setelah', 'sebelum', 'ketika', 'semua', 'setiap', 'banyak',
+        'lebih', 'sangat', 'masih', 'hanya', 'antara', 'melalui', 'terhadap',
+        'tentang', 'sampai', 'sejak', 'dimana', 'bagaimana', 'mengapa', 'siapa',
+        'kapan', 'berapa', 'pula', 'lagi', 'harus', 'perlu', 'boleh', 'bukan',
+        'belum', 'sedang', 'telah', 'kepada', 'daripada', 'menurut', 'serta',
+        'maupun', 'yaitu', 'yakni', 'ialah', 'adapun', 'walau', 'meski',
+        'supaya', 'sehingga', 'apabila', 'walaupun', 'meskipun', 'tersebut',
+        'anda', 'kamu', 'dia', 'hal', 'cara', 'jenis', 'bagian', 'salah',
     ];
 
     public function extractTags(string $text, int $topN = 3): array
@@ -49,7 +63,7 @@ class TFIDFService
         $words = preg_split('/\s+/', trim($text), -1, PREG_SPLIT_NO_EMPTY);
 
         return array_filter($words, function ($word) {
-            return strlen($word) > 2 && !in_array($word, $this->stopWords);
+            return strlen($word) > 3 && !in_array($word, $this->stopWords);
         });
     }
 
@@ -66,13 +80,28 @@ class TFIDFService
 
     public function similarity(string $a, string $b): float
     {
-        $a = strtolower($a);
-        $b = strtolower($b);
+        $aLower = strtolower($a);
+        $bLower = strtolower($b);
 
-        if ($a === $b) return 1.0;
+        if ($aLower === $bLower) return 1.0;
 
-        similar_text($a, $b, $percent);
-        return $percent / 100.0;
+        similar_text($aLower, $bLower, $percent);
+        $simScore = $percent / 100.0;
+
+        // Per-word Levenshtein: compare query ($b) against each word in filename stem ($a)
+        $stem  = strtolower(pathinfo($a, PATHINFO_FILENAME));
+        $words = preg_split('/[\s\-_.]+/', $stem, -1, PREG_SPLIT_NO_EMPTY);
+        $levScore = 0.0;
+        foreach ($words as $word) {
+            if (strlen($word) < 4) continue;
+            $maxLen = max(strlen($bLower), strlen($word));
+            if ($maxLen === 0) continue;
+            $lev = levenshtein($bLower, $word);
+            $s   = 1.0 - ($lev / $maxLen);
+            if ($s > $levScore) $levScore = $s;
+        }
+
+        return max($simScore, $levScore);
     }
 
     public function search(array $files, string $query): array
@@ -101,7 +130,7 @@ class TFIDFService
                 $score = max($score, 0.85);
             }
 
-            if ($score >= 0.3) {
+            if ($score >= 0.5) {
                 $file['_score'] = $score;
                 $scored[] = $file;
             }

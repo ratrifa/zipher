@@ -12,6 +12,8 @@ class Folder extends Model
 {
     use HasUuids, SoftDeletes;
 
+    protected $casts = ['is_starred' => 'boolean'];
+
     protected $appends = ['items_count', 'total_size'];
 
     public function getItemsCountAttribute(): int

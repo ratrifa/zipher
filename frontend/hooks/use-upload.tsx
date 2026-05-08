@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, ReactNode, useRef } from "react"
+import { createContext, useContext, useState, ReactNode } from "react"
 
 type UploadProgress = {
   fileName: string

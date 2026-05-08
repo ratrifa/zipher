@@ -1,5 +1,12 @@
 "use client"
 
+import { API_BASE } from "@/lib/api"
+import {
+  getIcon,
+  getIconClassName,
+  formatBytes,
+  formatDate,
+} from "@/lib/utils/file-utils"
 import { useMemo, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import {
@@ -12,8 +19,12 @@ import {
   FileCode2,
 } from "lucide-react"
 import axios from "axios"
-import { FilePreviewContent, isTextDecodable } from "@/components/dashboard/file-preview-content"
+import {
+  FilePreviewContent,
+  isTextDecodable,
+} from "@/components/dashboard/file-preview-content"
 
+import { PrivateKeyDialog } from "@/components/dashboard/private-key-dialog"
 import { FileCard } from "@/components/dashboard/file-card"
 import { FileLayoutSwitch } from "@/components/dashboard/file-layout-switch"
 import {
@@ -32,99 +43,36 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
-  importPrivateKey,
   importAESKey,
   decryptAESKey,
   decryptData,
   loadPrivateKey,
 } from "@/lib/crypto"
 
-function getIcon(mimeType: string, isFolder: boolean, fileName: string = "") {
-  if (isFolder) return Folder
-
-  const lowerName = fileName.toLowerCase()
-  const isCode =
-    lowerName.endsWith(".md") ||
-    lowerName.endsWith(".ts") ||
-    lowerName.endsWith(".tsx") ||
-    lowerName.endsWith(".js") ||
-    lowerName.endsWith(".py") ||
-    lowerName.endsWith(".json") ||
-    mimeType?.includes("javascript") ||
-    mimeType?.includes("typescript") ||
-    mimeType?.includes("markdown")
-
-  if (isCode) return FileCode2
-  if (mimeType?.includes("image")) return FileImage
-  if (
-    mimeType?.includes("spreadsheet") ||
-    mimeType?.includes("excel") ||
-    mimeType?.includes("csv")
-  )
-    return FileSpreadsheet
-  if (mimeType?.includes("presentation") || mimeType?.includes("powerpoint"))
-    return Presentation
-  if (
-    mimeType?.includes("pdf") ||
-    mimeType?.includes("word") ||
-    mimeType?.includes("officedocument.wordprocessingml") ||
-    mimeType?.includes("text")
-  )
-    return FileText
-  return FileIcon
-}
-
-function getIconClassName(mimeType: string, isFolder: boolean, fileName: string = "") {
-  if (isFolder) return "bg-blue-100 text-blue-700"
-
-  const lowerName = fileName.toLowerCase()
-  const isCode =
-    lowerName.endsWith(".md") ||
-    lowerName.endsWith(".ts") ||
-    lowerName.endsWith(".tsx") ||
-    lowerName.endsWith(".js") ||
-    lowerName.endsWith(".py") ||
-    lowerName.endsWith(".json") ||
-    mimeType?.includes("javascript") ||
-    mimeType?.includes("typescript") ||
-    mimeType?.includes("markdown")
-
-  if (isCode) return "bg-slate-100 text-slate-700"
-  if (mimeType?.includes("image")) return "bg-violet-100 text-violet-700"
-  if (
-    mimeType?.includes("spreadsheet") ||
-    mimeType?.includes("excel") ||
-    mimeType?.includes("csv")
-  )
-    return "bg-emerald-100 text-emerald-700"
-  if (mimeType?.includes("presentation") || mimeType?.includes("powerpoint"))
-    return "bg-rose-100 text-rose-700"
-  if (mimeType?.includes("pdf")) return "bg-orange-100 text-orange-700"
-  if (
-    mimeType?.includes("word") ||
-    mimeType?.includes("officedocument.wordprocessingml")
-  )
-    return "bg-sky-100 text-sky-700"
-  if (mimeType?.includes("text")) return "bg-slate-100 text-slate-700"
-  return "bg-slate-100 text-slate-700"
-}
-
-function formatBytes(bytes: number, decimals = 1) {
-  if (bytes === 0) return "0 B"
-  const k = 1024
-  const dm = decimals < 0 ? 0 : decimals
-  const sizes = ["B", "KB", "MB", "GB", "TB"]
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i]
-}
-
-function formatDate(dateString: string) {
-  const date = new Date(dateString)
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })
+function formatStarredItem(item: any) {
+  const isFolder = item.type === "folder"
+  const metaText = isFolder
+    ? `Folder • ${item.items_count || 0} items`
+    : formatBytes(item.size || 0)
+  return {
+    id: item.id,
+    name: item.name,
+    meta: metaText,
+    updatedAt: formatDate(item.updated_at),
+    owner: "You",
+    size: isFolder
+      ? formatBytes(item.total_size || 0)
+      : formatBytes(item.size || 0),
+    sizeBytes: isFolder ? item.total_size || 0 : item.size || 0,
+    location: isFolder
+      ? item.parent?.name || "Root"
+      : item.folder?.name || "Root",
+    icon: getIcon(item.mime_type || "", isFolder, item.name),
+    iconClassName: getIconClassName(item.mime_type || "", isFolder, item.name),
+    isFolder,
+    isStarred: true,
+    tags: isFolder ? [] : (item.tags || []).map((t: any) => t.name as string),
+  }
 }
 
 export function StarredSection() {
@@ -147,55 +95,41 @@ export function StarredSection() {
     content?: string
   } | null>(null)
   const [isOpening, setIsOpening] = useState(false)
+  const [privateKeyDialogOpen, setPrivateKeyDialogOpen] = useState(false)
+  const [pendingOpen, setPendingOpen] = useState<{
+    id: string
+    name: string
+  } | null>(null)
+  const [pendingDownload, setPendingDownload] = useState<{
+    id: string
+    name: string
+  } | null>(null)
 
   const fetchStarred = async () => {
+    const cached = localStorage.getItem("zipher_cache_starred")
+    if (cached) {
+      try {
+        setItems((JSON.parse(cached) as any[]).map(formatStarredItem))
+        setIsLoading(false)
+      } catch {}
+    } else {
+      setIsLoading(true)
+    }
+
     const token = localStorage.getItem("zipher_token")
     if (!token) return
 
-    setIsLoading(true)
     try {
-      const response = await axios.get(
-        "http://localhost:8000/api/v1/files/starred",
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-        }
-      )
+      const response = await axios.get(`${API_BASE}/api/v1/files/starred`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      })
       const data = response.data
       if (data.success && Array.isArray(data.data)) {
-        const formattedItems = data.data.map((item: any) => {
-          const isFolder = item.type === "folder"
-          let metaText = ""
-          if (isFolder) {
-            metaText = `Folder • ${item.items_count || 0} items`
-          } else {
-            metaText = formatBytes(item.size || 0)
-          }
-
-          const location = isFolder
-            ? item.parent?.name || "Root"
-            : item.folder?.name || "Root"
-
-          return {
-            id: item.id,
-            name: item.name,
-            meta: metaText,
-            updatedAt: formatDate(item.updated_at),
-            owner: "You",
-            size: isFolder
-              ? formatBytes(item.total_size || 0)
-              : formatBytes(item.size || 0),
-            sizeBytes: isFolder ? item.total_size || 0 : item.size || 0,
-            location: location,
-            icon: getIcon(item.mime_type || "", isFolder, item.name),
-            iconClassName: getIconClassName(item.mime_type || "", isFolder, item.name),
-            isFolder: isFolder,
-            isStarred: true,
-          }
-        })
-        setItems(formattedItems)
+        setItems(data.data.map(formatStarredItem))
+        localStorage.setItem("zipher_cache_starred", JSON.stringify(data.data))
       } else {
         setItems([])
       }
@@ -236,7 +170,7 @@ export function StarredSection() {
     const endpoint = isFolder ? `folders/${id}` : `files/${id}`
 
     try {
-      await axios.delete(`http://localhost:8000/api/v1/${endpoint}`, {
+      await axios.delete(`${API_BASE}/api/v1/${endpoint}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: "application/json",
@@ -257,7 +191,7 @@ export function StarredSection() {
 
     try {
       await axios.post(
-        `http://localhost:8000/api/v1/${endpoint}`,
+        `${API_BASE}/api/v1/${endpoint}`,
         {},
         {
           headers: {
@@ -272,6 +206,20 @@ export function StarredSection() {
     }
   }
 
+  const handleKeyConfirm = async () => {
+    const key = await loadPrivateKey()
+    if (!key) return
+    if (pendingOpen) {
+      const { id, name } = pendingOpen
+      setPendingOpen(null)
+      handleOpen(id, name, false)
+    } else if (pendingDownload) {
+      const { id, name } = pendingDownload
+      setPendingDownload(null)
+      handleDownload(id, name)
+    }
+  }
+
   const handleOpen = async (id: string, name: string, isFolder: boolean) => {
     if (isFolder) {
       router.push(`/dashboard?folder=${id}`)
@@ -280,11 +228,17 @@ export function StarredSection() {
 
     setIsOpening(true)
     const token = localStorage.getItem("zipher_token")
-    const privateKeyPem = loadPrivateKey()
+    const privateKey = await loadPrivateKey()
+    if (!privateKey) {
+      setIsOpening(false)
+      setPendingOpen({ id, name })
+      setPrivateKeyDialogOpen(true)
+      return
+    }
 
     try {
       const response = await axios.get(
-        `http://localhost:8000/api/v1/files/${id}/download?intent=preview`,
+        `${API_BASE}/api/v1/files/${id}/download?intent=preview`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -295,14 +249,17 @@ export function StarredSection() {
       const data = response.data
 
       if (data.encrypted_data && data.aes_key_encrypted) {
-        if (privateKeyPem && data.aes_key_encrypted !== "placeholder_encrypted_key") {
+        if (privateKey) {
           try {
-            const privKey = await importPrivateKey(privateKeyPem)
-            const aesKeyStr = await decryptAESKey(data.aes_key_encrypted, privKey)
+            const aesKeyStr = await decryptAESKey(
+              data.aes_key_encrypted,
+              privateKey
+            )
             const aesKey = await importAESKey(aesKeyStr)
 
-            const encryptedBuffer = Uint8Array.from(atob(data.encrypted_data), (c) =>
-              c.charCodeAt(0)
+            const encryptedBuffer = Uint8Array.from(
+              atob(data.encrypted_data),
+              (c) => c.charCodeAt(0)
             ).buffer
             const decryptedBuffer = await decryptData(encryptedBuffer, aesKey)
 
@@ -311,7 +268,12 @@ export function StarredSection() {
             const content = isTextDecodable(data.mime_type, data.name)
               ? new TextDecoder().decode(decryptedBuffer)
               : undefined
-            setPreviewItem({ name: data.name, mimeType: data.mime_type, url, content })
+            setPreviewItem({
+              name: data.name,
+              mimeType: data.mime_type,
+              url,
+              content,
+            })
             return
           } catch (err) {
             console.error("Decryption failed for preview:", err)
@@ -333,11 +295,16 @@ export function StarredSection() {
 
   const handleDownload = async (id: string, name: string) => {
     const token = localStorage.getItem("zipher_token")
-    const privateKeyPem = loadPrivateKey()
+    const privateKey = await loadPrivateKey()
+    if (!privateKey) {
+      setPendingDownload({ id, name })
+      setPrivateKeyDialogOpen(true)
+      return
+    }
 
     try {
       const response = await axios.get(
-        `http://localhost:8000/api/v1/files/${id}/download`,
+        `${API_BASE}/api/v1/files/${id}/download`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -348,14 +315,17 @@ export function StarredSection() {
       const data = response.data
 
       if (data.encrypted_data && data.aes_key_encrypted) {
-        if (privateKeyPem && data.aes_key_encrypted !== "placeholder_encrypted_key") {
+        if (privateKey) {
           try {
-            const privKey = await importPrivateKey(privateKeyPem)
-            const aesKeyStr = await decryptAESKey(data.aes_key_encrypted, privKey)
+            const aesKeyStr = await decryptAESKey(
+              data.aes_key_encrypted,
+              privateKey
+            )
             const aesKey = await importAESKey(aesKeyStr)
 
-            const encryptedBuffer = Uint8Array.from(atob(data.encrypted_data), (c) =>
-              c.charCodeAt(0)
+            const encryptedBuffer = Uint8Array.from(
+              atob(data.encrypted_data),
+              (c) => c.charCodeAt(0)
             ).buffer
             const decryptedBuffer = await decryptData(encryptedBuffer, aesKey)
 
@@ -411,7 +381,7 @@ export function StarredSection() {
 
     try {
       await axios.patch(
-        `http://localhost:8000/api/v1/${endpoint}`,
+        `${API_BASE}/api/v1/${endpoint}`,
         { name: finalName },
         {
           headers: {
@@ -433,7 +403,9 @@ export function StarredSection() {
         <div className="grid h-full grid-cols-[1fr_auto] items-center gap-3">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Starred</h1>
-            <p className="text-sm text-muted-foreground">Your starred files</p>
+            <p className="text-sm text-muted-foreground">
+              File dan folder favorit.
+            </p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -477,6 +449,7 @@ export function StarredSection() {
               updatedAt={file.updatedAt}
               icon={file.icon}
               iconClassName={file.iconClassName}
+              tags={file.tags}
               layout="grid"
               isFolder={file.isFolder}
               isStarred={file.isStarred}
@@ -489,6 +462,12 @@ export function StarredSection() {
           ))}
         </div>
       )}
+
+      <PrivateKeyDialog
+        open={privateKeyDialogOpen}
+        onOpenChange={setPrivateKeyDialogOpen}
+        onConfirm={handleKeyConfirm}
+      />
 
       <Dialog
         open={!!renameItem}

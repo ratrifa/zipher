@@ -1,6 +1,9 @@
 "use client"
 
-import { useMemo, useState, useEffect, Suspense, useRef } from "react"
+import { API_BASE } from "@/lib/api"
+import { getIcon, getIconClassName, formatBytes, formatDate } from "@/lib/utils/file-utils"
+import { useMemo, useState, useEffect, Suspense } from "react"
+import { useAppDialog } from "@/hooks/use-app-dialog"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
   FileImage,
@@ -25,6 +28,7 @@ import {
 } from "@/components/dashboard/files-list-table"
 import { NewDropdownMenu } from "@/components/dashboard/new-dropdown-menu"
 import { ShareDialog } from "@/components/dashboard/share-dialog"
+import { PrivateKeyDialog } from "@/components/dashboard/private-key-dialog"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -37,7 +41,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
-  importPrivateKey,
   importAESKey,
   decryptAESKey,
   decryptData,
@@ -46,92 +49,27 @@ import {
 import axios from "axios"
 import { Loader2 } from "lucide-react"
 
-function getIcon(mimeType: string, isFolder: boolean, fileName: string = "") {
-  if (isFolder) return Folder
 
-  const lowerName = fileName.toLowerCase()
-  const isCode =
-    lowerName.endsWith(".md") ||
-    lowerName.endsWith(".ts") ||
-    lowerName.endsWith(".tsx") ||
-    lowerName.endsWith(".js") ||
-    lowerName.endsWith(".py") ||
-    lowerName.endsWith(".json") ||
-    mimeType?.includes("javascript") ||
-    mimeType?.includes("typescript") ||
-    mimeType?.includes("markdown")
-
-  if (isCode) return FileCode2
-  if (mimeType.includes("image")) return FileImage
-  if (
-    mimeType.includes("spreadsheet") ||
-    mimeType.includes("excel") ||
-    mimeType.includes("csv")
-  )
-    return FileSpreadsheet
-  if (mimeType.includes("presentation") || mimeType.includes("powerpoint"))
-    return Presentation
-  if (
-    mimeType.includes("pdf") ||
-    mimeType.includes("word") ||
-    mimeType.includes("officedocument.wordprocessingml") ||
-    mimeType.includes("text")
-  )
-    return FileText
-  return FileIcon
-}
-
-function getIconClassName(mimeType: string, isFolder: boolean, fileName: string = "") {
-  if (isFolder) return "bg-blue-100 text-blue-700"
-
-  const lowerName = fileName.toLowerCase()
-  const isCode =
-    lowerName.endsWith(".md") ||
-    lowerName.endsWith(".ts") ||
-    lowerName.endsWith(".tsx") ||
-    lowerName.endsWith(".js") ||
-    lowerName.endsWith(".py") ||
-    lowerName.endsWith(".json") ||
-    mimeType?.includes("javascript") ||
-    mimeType?.includes("typescript") ||
-    mimeType?.includes("markdown")
-
-  if (isCode) return "bg-slate-100 text-slate-700"
-  if (mimeType.includes("image")) return "bg-violet-100 text-violet-700"
-  if (
-    mimeType.includes("spreadsheet") ||
-    mimeType.includes("excel") ||
-    mimeType.includes("csv")
-  )
-    return "bg-emerald-100 text-emerald-700"
-  if (mimeType.includes("presentation") || mimeType.includes("powerpoint"))
-    return "bg-rose-100 text-rose-700"
-  if (mimeType.includes("pdf")) return "bg-orange-100 text-orange-700"
-  if (
-    mimeType.includes("word") ||
-    mimeType.includes("officedocument.wordprocessingml")
-  )
-    return "bg-sky-100 text-sky-700"
-  if (mimeType.includes("text")) return "bg-slate-100 text-slate-700"
-  return "bg-slate-100 text-slate-700"
-}
-
-function formatBytes(bytes: number, decimals = 1) {
-  if (bytes === 0) return "0 B"
-  const k = 1024
-  const dm = decimals < 0 ? 0 : decimals
-  const sizes = ["B", "KB", "MB", "GB", "TB"]
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i]
-}
-
-function formatDate(dateString: string) {
-  const date = new Date(dateString)
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })
+function formatContentsItem(item: any) {
+  const isFolder = item.type === "folder"
+  const metaText = isFolder
+    ? `Folder • ${item.items_count || 0} items`
+    : formatBytes(item.size)
+  return {
+    id: item.id,
+    name: item.name,
+    meta: metaText,
+    updatedAt: formatDate(item.updated_at),
+    owner: "You",
+    size: isFolder ? formatBytes(item.total_size || 0) : formatBytes(item.size),
+    sizeBytes: isFolder ? item.total_size || 0 : item.size || 0,
+    icon: getIcon(item.mime_type || "", isFolder, item.name),
+    iconClassName: getIconClassName(item.mime_type || "", isFolder, item.name),
+    isFolder,
+    isStarred: item.is_starred,
+    parentId: isFolder ? item.parent_id : item.folder_id,
+    tags: isFolder ? [] : (item.tags || []).map((t: any) => t.name as string),
+  }
 }
 
 export function MyFilesSection() {
@@ -149,6 +87,7 @@ export function MyFilesSection() {
 }
 
 function MyFilesContent() {
+  const { showAlert } = useAppDialog()
   const router = useRouter()
   const searchParams = useSearchParams()
   const currentFolderId = searchParams.get("folder")
@@ -192,80 +131,55 @@ function MyFilesContent() {
     content?: string
     tags?: any[]
   } | null>(null)
-  const fetchingRef = useRef<Set<string>>(new Set())
-
   const [shareItem, setShareItem] = useState<{ id: string; name: string } | null>(null)
+  const [privateKeyDialogOpen, setPrivateKeyDialogOpen] = useState(false)
+  const [pendingOpen, setPendingOpen] = useState<{ id: string; name: string } | null>(null)
+  const [pendingDownload, setPendingDownload] = useState<{ id: string; name: string } | null>(null)
 
   const fetchContents = async () => {
     const token = localStorage.getItem("zipher_token")
     if (!token) return
 
-    setIsLoading(true)
-    try {
-      const q = searchParams.get("q")
-      let url = ""
+    const q = searchParams.get("q")
+    const cacheKey = q ? null : `zipher_cache_contents_${currentFolderId ?? "root"}`
+    let hasCachedData = false
 
-      if (q) {
-        url = `http://localhost:8000/api/v1/search?q=${encodeURIComponent(q)}`
-      } else {
-        url = currentFolderId
-          ? `http://localhost:8000/api/v1/contents?folder_id=${currentFolderId}`
-          : "http://localhost:8000/api/v1/contents"
+    if (cacheKey) {
+      const cached = localStorage.getItem(cacheKey)
+      if (cached) {
+        try {
+          const raw = JSON.parse(cached)
+          setItems(raw.data.map(formatContentsItem))
+          if (raw.breadcrumbs) setFolderStack(raw.breadcrumbs)
+          setIsLoading(false)
+          hasCachedData = true
+        } catch {}
       }
+    }
+
+    if (!hasCachedData) setIsLoading(true)
+
+    try {
+      const url = q
+        ? `${API_BASE}/api/v1/search?q=${encodeURIComponent(q)}`
+        : currentFolderId
+          ? `${API_BASE}/api/v1/contents?folder_id=${currentFolderId}`
+          : `${API_BASE}/api/v1/contents`
 
       const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        },
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
       })
       const data = await response.json()
       if (data.success) {
-        // Update breadcrumbs from API if available
         if (data.breadcrumbs) {
           setFolderStack(data.breadcrumbs)
         } else if (!currentFolderId) {
           setFolderStack([])
         }
-
-        const formattedItems = data.data.map((item: any) => {
-          let metaText = ""
-          if (item.type === "folder") {
-            metaText = `Folder • ${item.items_count || 0} items`
-          } else {
-            const firstTag =
-              item.tags && item.tags.length > 0
-                ? item.tags[0].name || item.tags[0]
-                : ""
-            metaText = firstTag
-              ? `${firstTag} • ${formatBytes(item.size)}`
-              : formatBytes(item.size)
-          }
-
-          return {
-            id: item.id,
-            name: item.name,
-            meta: metaText,
-            updatedAt: formatDate(item.updated_at),
-            owner: "You",
-            size: item.type === "folder" ? formatBytes(item.total_size || 0) : formatBytes(item.size),
-            sizeBytes: item.type === "folder" ? item.total_size || 0 : item.size || 0,
-            icon: getIcon(
-              item.mime_type || "",
-              item.type === "folder",
-              item.name
-            ),
-            iconClassName: getIconClassName(
-              item.mime_type || "",
-              item.type === "folder",
-              item.name
-            ),
-            isFolder: item.type === "folder",
-            isStarred: item.is_starred,
-            parentId: item.type === "folder" ? item.parent_id : item.folder_id,
-          }
-        })
-        setItems(formattedItems)
+        setItems(data.data.map(formatContentsItem))
+        if (cacheKey) {
+          localStorage.setItem(cacheKey, JSON.stringify({ data: data.data, breadcrumbs: data.breadcrumbs }))
+        }
       }
     } catch (error) {
       console.error("Failed to fetch contents:", error)
@@ -295,8 +209,8 @@ function MyFilesContent() {
       const token = localStorage.getItem("zipher_token")
       try {
         const url = moveCurrentFolderId
-          ? `http://localhost:8000/api/v1/folders?parent_id=${moveCurrentFolderId}`
-          : "http://localhost:8000/api/v1/folders"
+          ? `${API_BASE}/api/v1/folders?parent_id=${moveCurrentFolderId}`
+          : `${API_BASE}/api/v1/folders`
 
         const response = await fetch(url, {
           headers: {
@@ -325,7 +239,7 @@ function MyFilesContent() {
     const token = localStorage.getItem("zipher_token")
     try {
       const response = await fetch(
-        "http://localhost:8000/api/v1/contents/move",
+        `${API_BASE}/api/v1/contents/move`,
         {
           method: "POST",
           headers: {
@@ -348,7 +262,7 @@ function MyFilesContent() {
         setMoveFolderStack([])
       } else {
         const err = await response.json()
-        alert(err.message || "Gagal memindahkan item")
+        showAlert("Gagal", err.message || "Gagal memindahkan item")
       }
     } catch (error) {
       console.error("Failed to move item:", error)
@@ -386,7 +300,7 @@ function MyFilesContent() {
     const endpoint = isFolder ? `folders/${id}` : `files/${id}`
 
     try {
-      const response = await fetch(`http://localhost:8000/api/v1/${endpoint}`, {
+      const response = await fetch(`${API_BASE}/api/v1/${endpoint}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -409,7 +323,7 @@ function MyFilesContent() {
     const endpoint = item.isFolder ? `folders/${id}/star` : `files/${id}/star`
 
     try {
-      const response = await fetch(`http://localhost:8000/api/v1/${endpoint}`, {
+      const response = await fetch(`${API_BASE}/api/v1/${endpoint}`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -470,7 +384,7 @@ function MyFilesContent() {
     }
 
     try {
-      const response = await fetch(`http://localhost:8000/api/v1/${endpoint}`, {
+      const response = await fetch(`${API_BASE}/api/v1/${endpoint}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -485,20 +399,39 @@ function MyFilesContent() {
         setRenameConfirm(null)
       } else {
         const data = await response.json()
-        alert(data.message || "Gagal mengubah nama")
+        showAlert("Gagal", data.message || "Gagal mengubah nama")
       }
     } catch (error) {
       console.error("Failed to rename:", error)
     }
   }
 
+  const handleKeyConfirm = async () => {
+    const key = await loadPrivateKey()
+    if (!key) return
+    if (pendingOpen) {
+      const { id, name } = pendingOpen
+      setPendingOpen(null)
+      handleOpen(id, name, false)
+    } else if (pendingDownload) {
+      const { id, name } = pendingDownload
+      setPendingDownload(null)
+      handleDownload(id, name)
+    }
+  }
+
   const handleDownload = async (id: string, name: string) => {
     const token = localStorage.getItem("zipher_token")
-    const privateKeyPem = loadPrivateKey()
+    const privateKey = await loadPrivateKey()
+    if (!privateKey) {
+      setPendingDownload({ id, name })
+      setPrivateKeyDialogOpen(true)
+      return
+    }
 
     try {
       const response = await axios.get(
-        `http://localhost:8000/api/v1/files/${id}/download`,
+        `${API_BASE}/api/v1/files/${id}/download`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -509,11 +442,9 @@ function MyFilesContent() {
       const data = response.data
 
       if (data.encrypted_data && data.aes_key_encrypted) {
-        // If we have a private key and it's not a placeholder, decrypt
-        if (privateKeyPem && data.aes_key_encrypted !== "placeholder_encrypted_key") {
+        if (privateKey) {
           try {
-            const privKey = await importPrivateKey(privateKeyPem)
-            const aesKeyStr = await decryptAESKey(data.aes_key_encrypted, privKey)
+            const aesKeyStr = await decryptAESKey(data.aes_key_encrypted, privateKey)
             const aesKey = await importAESKey(aesKeyStr)
 
             const encryptedBuffer = Uint8Array.from(atob(data.encrypted_data), (c) =>
@@ -551,11 +482,17 @@ function MyFilesContent() {
     } else {
       setIsOpening(true)
       const token = localStorage.getItem("zipher_token")
-      const privateKeyPem = loadPrivateKey()
+      const privateKey = await loadPrivateKey()
+      if (!privateKey) {
+        setIsOpening(false)
+        setPendingOpen({ id, name })
+        setPrivateKeyDialogOpen(true)
+        return
+      }
 
       try {
         const response = await axios.get(
-          `http://localhost:8000/api/v1/files/${id}/download?intent=preview`,
+          `${API_BASE}/api/v1/files/${id}/download?intent=preview`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -566,10 +503,9 @@ function MyFilesContent() {
         const data = response.data
 
         if (data.encrypted_data && data.aes_key_encrypted) {
-          if (privateKeyPem && data.aes_key_encrypted !== "placeholder_encrypted_key") {
+          if (privateKey) {
             try {
-              const privKey = await importPrivateKey(privateKeyPem)
-              const aesKeyStr = await decryptAESKey(data.aes_key_encrypted, privKey)
+              const aesKeyStr = await decryptAESKey(data.aes_key_encrypted, privateKey)
               const aesKey = await importAESKey(aesKeyStr)
 
               const encryptedBuffer = Uint8Array.from(atob(data.encrypted_data), (c) =>
@@ -705,6 +641,7 @@ function MyFilesContent() {
               updatedAt={file.updatedAt}
               icon={file.icon}
               iconClassName={file.iconClassName}
+              tags={file.tags}
               layout="grid"
               isFolder={file.isFolder}
               isStarred={file.isStarred}
@@ -889,9 +826,20 @@ function MyFilesContent() {
         </DialogContent>
       </Dialog>
 
+      <PrivateKeyDialog
+        open={privateKeyDialogOpen}
+        onOpenChange={setPrivateKeyDialogOpen}
+        onConfirm={handleKeyConfirm}
+      />
+
       <Dialog
         open={!!previewItem}
-        onOpenChange={(open) => !open && setPreviewItem(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            if (previewItem?.url?.startsWith("blob:")) URL.revokeObjectURL(previewItem.url)
+            setPreviewItem(null)
+          }
+        }}
       >
         <DialogContent className="flex h-[90vh] flex-col overflow-hidden p-0 sm:max-w-4xl">
           <DialogHeader className="flex flex-none flex-row items-center justify-between space-y-0 border-b p-4">

@@ -13,6 +13,9 @@ return new class extends Migration
             $table->string('name');
             $table->foreignUuid('user_id')->constrained()->onDelete('cascade');
             $table->foreignUuid('parent_id')->nullable()->constrained('folders')->onDelete('cascade');
+            $table->boolean('is_starred')->default(false);
+            $table->softDeletes();
+            $table->uuid('trashed_with_parent_id')->nullable();
             $table->timestamps();
         });
     }

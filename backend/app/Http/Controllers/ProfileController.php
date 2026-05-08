@@ -35,7 +35,7 @@ class ProfileController extends Controller
         return response()->json([
             'success' => true,
             'data' => $user,
-            'message' => 'Profile updated successfully',
+            'message' => 'Profil berhasil diperbarui.',
         ]);
     }
 
@@ -61,7 +61,7 @@ class ProfileController extends Controller
         if (!Hash::check($request->current_password, $user->password)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Current password does not match',
+                'message' => 'Password saat ini tidak cocok.',
             ], 400);
         }
 
@@ -71,7 +71,7 @@ class ProfileController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Password updated successfully',
+            'message' => 'Password berhasil diperbarui.',
         ]);
     }
 
@@ -105,7 +105,7 @@ class ProfileController extends Controller
             'data' => [
                 'avatar_url' => asset('storage/' . $path),
             ],
-            'message' => 'Avatar updated successfully',
+            'message' => 'Avatar berhasil diperbarui.',
         ]);
     }
 }

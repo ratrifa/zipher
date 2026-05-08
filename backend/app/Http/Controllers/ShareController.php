@@ -33,7 +33,7 @@ class ShareController extends Controller
         if ($request->receiver_id === auth()->id()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Cannot share with yourself',
+                'message' => 'Tidak dapat berbagi dengan diri sendiri.',
             ], 422);
         }
 
@@ -64,7 +64,7 @@ class ShareController extends Controller
         return response()->json([
             'success' => true,
             'data' => $shared,
-            'message' => 'File shared successfully',
+            'message' => 'File berhasil dibagikan.',
         ], 201);
     }
 
@@ -102,7 +102,7 @@ class ShareController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Access revoked',
+            'message' => 'Akses berbagi berhasil dicabut.',
         ]);
     }
 
@@ -116,7 +116,7 @@ class ShareController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'You have left this shared file',
+            'message' => 'Akses berbagi berhasil dihapus.',
         ]);
     }
 }

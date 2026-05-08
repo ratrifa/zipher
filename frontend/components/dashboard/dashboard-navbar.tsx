@@ -1,9 +1,17 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { API_BASE } from "@/lib/api"
+import { useEffect, useState, Suspense } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { FolderOpen, Search, ChevronDown, Settings, User, LogOut } from "lucide-react"
+import { useRouter, useSearchParams } from "next/navigation"
+import {
+  FolderOpen,
+  Search,
+  ChevronDown,
+  Settings,
+  User,
+  LogOut,
+} from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -16,6 +24,40 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
+import { clearPrivateKey } from "@/lib/crypto"
+
+function SearchInput() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "")
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    const params = new URLSearchParams(searchParams.toString())
+    if (searchQuery.trim()) {
+      params.set("q", searchQuery.trim())
+    } else {
+      params.delete("q")
+    }
+    router.push(`/dashboard?${params.toString()}`)
+  }
+
+  return (
+    <form
+      onSubmit={handleSearch}
+      className="relative ml-2 hidden max-w-md flex-1 md:block"
+    >
+      <Search className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        type="search"
+        placeholder="Cari file..."
+        className="h-10 rounded-full bg-muted pl-10"
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+      />
+    </form>
+  )
+}
 
 export function DashboardNavbar() {
   const router = useRouter()
@@ -43,14 +85,28 @@ export function DashboardNavbar() {
     }
   }, [])
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await clearPrivateKey()
     localStorage.removeItem("zipher_token")
     localStorage.removeItem("zipher_user")
+    const cacheKeys = [
+      "zipher_cache_recent",
+      "zipher_cache_trash",
+      "zipher_cache_starred",
+      "zipher_cache_sharing",
+    ]
+    cacheKeys.forEach((k) => localStorage.removeItem(k))
+    // folder-level caches follow the pattern zipher_cache_contents_*
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith("zipher_cache_contents_"))
+      .forEach((k) => localStorage.removeItem(k))
     router.push("/")
   }
 
-  const avatarUrl = user?.avatar ? `http://localhost:8000/storage/${user.avatar}` : null
-  const initials = user?.username ? user.username.slice(0, 2).toUpperCase() : "ZA"
+  const avatarUrl = user?.avatar ? `${API_BASE}/storage/${user.avatar}` : null
+  const initials = user?.username
+    ? user.username.slice(0, 2).toUpperCase()
+    : "ZA"
 
   return (
     <header className="border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80">
@@ -62,14 +118,15 @@ export function DashboardNavbar() {
           <span className="text-base font-semibold tracking-tight">zipher</span>
         </Link>
 
-        <div className="relative ml-2 hidden max-w-md flex-1 md:block">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Search files..."
-            className="h-10 rounded-full bg-muted pl-10"
-          />
-        </div>
+        <Suspense
+          fallback={
+            <div className="ml-2 hidden max-w-md flex-1 md:block">
+              <div className="h-10 animate-pulse rounded-full bg-muted" />
+            </div>
+          }
+        >
+          <SearchInput />
+        </Suspense>
 
         <div className="ml-auto flex items-center gap-2">
           <DropdownMenu>
@@ -98,11 +155,14 @@ export function DashboardNavbar() {
               <DropdownMenuItem asChild>
                 <Link href="/profile#security">
                   <Settings className="size-4" />
-                  Settings
+                  Pengaturan
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive" onClick={handleLogout}>
+              <DropdownMenuItem
+                className="text-destructive"
+                onClick={handleLogout}
+              >
                 <LogOut className="size-4" />
                 Keluar
               </DropdownMenuItem>

@@ -8,6 +8,7 @@ use App\Models\Folder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 class FolderController extends Controller
 {
@@ -28,7 +29,7 @@ class FolderController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
-            'parent_id' => 'nullable|uuid|exists:folders,id',
+            'parent_id' => ['nullable', 'uuid', Rule::exists('folders', 'id')->where('user_id', auth()->id())],
         ]);
 
         if ($validator->fails()) {
@@ -51,7 +52,7 @@ class FolderController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => $folder,
-                'message' => 'Folder already exists, using existing one',
+                'message' => 'Folder sudah ada, menggunakan yang sudah ada.',
             ], 200);
         }
 
@@ -77,7 +78,7 @@ class FolderController extends Controller
         return response()->json([
             'success' => true,
             'data' => $folder,
-            'message' => 'Folder created successfully',
+            'message' => 'Folder berhasil dibuat.',
         ], 201);
     }
 
@@ -87,7 +88,7 @@ class FolderController extends Controller
 
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
-            'parent_id' => 'nullable|uuid|exists:folders,id',
+            'parent_id' => ['nullable', 'uuid', Rule::exists('folders', 'id')->where('user_id', auth()->id())],
         ]);
 
         if ($validator->fails()) {
@@ -105,14 +106,14 @@ class FolderController extends Controller
             if ($parentId === $folder->id) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'A folder cannot be its own parent.',
+                    'message' => 'Folder tidak dapat menjadi parentnya sendiri.',
                 ], 422);
             }
 
             if ($this->isDescendant($folder->id, $parentId)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Cannot move a folder into its own descendant.',
+                    'message' => 'Tidak dapat memindahkan folder ke dalam childnya sendiri.',
                 ], 422);
             }
         }
@@ -152,7 +153,7 @@ class FolderController extends Controller
         return response()->json([
             'success' => true,
             'data' => $folder,
-            'message' => 'Folder updated successfully',
+            'message' => 'Folder berhasil diupdate.',
         ]);
     }
 
@@ -177,7 +178,7 @@ class FolderController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Folder moved to trash',
+            'message' => 'Folder dipindahkan ke sampah.',
         ]);
     }
 
@@ -185,6 +186,10 @@ class FolderController extends Controller
     {
         $folders = Folder::onlyTrashed()
             ->where('user_id', auth()->id())
+            ->where(function ($q) {
+                $q->whereNull('parent_id')
+                  ->orWhereHas('parent'); // parent exists and is not soft-deleted
+            })
             ->with('parent')
             ->orderBy('deleted_at', 'desc')
             ->get();
@@ -203,7 +208,7 @@ class FolderController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Folder restored',
+            'message' => 'Folder berhasil dipulihkan.',
         ]);
     }
 
@@ -229,7 +234,7 @@ class FolderController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Folder permanently deleted',
+            'message' => 'Folder berhasil dihapus permanen.',
         ]);
     }
 
@@ -246,21 +251,29 @@ class FolderController extends Controller
 
     private function isDescendant(string $folderId, string $targetFolderId): bool
     {
-        $target = Folder::find($targetFolderId);
-        while ($target && $target->parent_id) {
-            if ($target->parent_id === $folderId) {
-                return true;
-            }
-            $target = Folder::find($target->parent_id);
-        }
-        return false;
+        $rows = \DB::select("
+            WITH RECURSIVE ancestors AS (
+                SELECT id, parent_id FROM folders WHERE id = ?
+                UNION ALL
+                SELECT f.id, f.parent_id FROM folders f
+                INNER JOIN ancestors a ON f.id = a.parent_id
+            )
+            SELECT id FROM ancestors WHERE id = ?
+        ", [$targetFolderId, $folderId]);
+
+        return !empty($rows);
     }
 
     private function softDeleteDescendants(Folder $folder): void
     {
+        File::where('folder_id', $folder->id)
+            ->update(['trashed_with_parent_id' => $folder->id]);
         File::where('folder_id', $folder->id)->delete();
+
         $children = Folder::where('parent_id', $folder->id)->get();
         foreach ($children as $child) {
+            $child->trashed_with_parent_id = $folder->id;
+            $child->save();
             $this->softDeleteDescendants($child);
             $child->delete();
         }
@@ -268,11 +281,23 @@ class FolderController extends Controller
 
     private function restoreDescendants(Folder $folder): void
     {
-        File::onlyTrashed()->where('folder_id', $folder->id)->restore();
-        $children = Folder::onlyTrashed()->where('parent_id', $folder->id)->get();
+        File::onlyTrashed()
+            ->where('folder_id', $folder->id)
+            ->where('trashed_with_parent_id', $folder->id)
+            ->restore();
+        File::where('folder_id', $folder->id)
+            ->where('trashed_with_parent_id', $folder->id)
+            ->update(['trashed_with_parent_id' => null]);
+
+        $children = Folder::onlyTrashed()
+            ->where('parent_id', $folder->id)
+            ->where('trashed_with_parent_id', $folder->id)
+            ->get();
         foreach ($children as $child) {
             $this->restoreDescendants($child);
             $child->restore();
+            $child->trashed_with_parent_id = null;
+            $child->save();
         }
     }
 

@@ -42,7 +42,7 @@ class AuthController extends Controller
                 'user' => $user,
                 'token' => $token,
             ],
-            'message' => 'Registration successful',
+            'message' => 'Registrasi berhasil.',
         ], 201);
     }
 
@@ -65,7 +65,7 @@ class AuthController extends Controller
         if (!$user || !Hash::check($request->password, $user->password)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Invalid credentials',
+                'message' => 'Email atau Password salah',
             ], 401);
         }
 
@@ -77,7 +77,7 @@ class AuthController extends Controller
                 'user' => $user,
                 'token' => $token,
             ],
-            'message' => 'Login successful',
+            'message' => 'Login berhasil.',
         ]);
     }
 
@@ -98,7 +98,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Logged out',
+            'message' => 'Logout berhasil.',
         ]);
     }
 
@@ -125,27 +125,24 @@ class AuthController extends Controller
             ], 422);
         }
 
-        $status = Password::sendResetLink($request->only('email'));
-
-        if ($status !== Password::RESET_LINK_SENT) {
+        if (!User::where('email', $request->email)->exists()) {
             return response()->json([
                 'success' => false,
-                'message' => __($status),
-            ], 400);
+                'message' => 'Email tidak ditemukan.',
+            ], 404);
         }
 
         return response()->json([
             'success' => true,
-            'message' => 'Password reset link sent to your email',
+            'message' => 'Email ditemukan.',
         ]);
     }
 
-    public function resetPassword(Request $request): JsonResponse
+    public function verifyResetKey(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'token' => 'required|string',
-            'email' => 'required|email',
-            'password' => 'required|string|min:8|confirmed',
+            'email'       => 'required|email',
+            'private_key' => 'required|string',
         ]);
 
         if ($validator->fails()) {
@@ -155,24 +152,109 @@ class AuthController extends Controller
             ], 422);
         }
 
-        $status = Password::reset(
-            $request->only('email', 'password', 'password_confirmation', 'token'),
-            function (User $user, string $password) {
-                $user->forceFill(['password' => Hash::make($password)])->save();
-                $user->tokens()->delete();
-            }
-        );
-
-        if ($status !== Password::PASSWORD_RESET) {
+        $user = User::where('email', $request->email)->first();
+        if (!$user) {
             return response()->json([
                 'success' => false,
-                'message' => __($status),
-            ], 400);
+                'message' => 'Email tidak ditemukan.',
+            ], 404);
+        }
+
+        $privKey = openssl_pkey_get_private($this->normalizePem($request->private_key));
+        if (!$privKey) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Format kunci privat tidak valid.',
+            ], 422);
+        }
+
+        $testData = 'zipher-reset-verify-' . $user->id;
+        $signature = '';
+        if (!openssl_sign($testData, $signature, $privKey, OPENSSL_ALGO_SHA256)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Kunci privat tidak valid.',
+            ], 422);
+        }
+
+        if (openssl_verify($testData, $signature, $this->normalizePem($user->public_key, true), OPENSSL_ALGO_SHA256) !== 1) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Kunci privat tidak cocok dengan akun ini.',
+            ], 422);
         }
 
         return response()->json([
             'success' => true,
-            'message' => 'Password reset successful',
+            'message' => 'Kunci privat valid.',
+        ]);
+    }
+
+    private function normalizePem(string $key, bool $isPublic = false): string
+    {
+        $key = trim($key);
+        if (str_starts_with($key, '-----')) {
+            return $key;
+        }
+        $b64 = preg_replace('/\s+/', '', $key);
+        $header = $isPublic ? 'PUBLIC KEY' : 'PRIVATE KEY';
+        return "-----BEGIN {$header}-----\n" . chunk_split($b64, 64, "\n") . "-----END {$header}-----\n";
+    }
+
+    public function resetPassword(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'email'                 => 'required|email',
+            'private_key'          => 'required|string',
+            'password'             => 'required|string|min:8|confirmed',
+            'password_confirmation' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+            ], 422);
+        }
+
+        $user = User::where('email', $request->email)->first();
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Email tidak ditemukan.',
+            ], 404);
+        }
+
+        $privKey = openssl_pkey_get_private($this->normalizePem($request->private_key));
+        if (!$privKey) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Format kunci privat tidak valid.',
+            ], 422);
+        }
+
+        $testData = 'zipher-reset-verify-' . $user->id;
+        $signature = '';
+        if (!openssl_sign($testData, $signature, $privKey, OPENSSL_ALGO_SHA256)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Kunci privat tidak valid.',
+            ], 422);
+        }
+
+        if (openssl_verify($testData, $signature, $this->normalizePem($user->public_key, true), OPENSSL_ALGO_SHA256) !== 1) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Kunci privat tidak cocok dengan akun ini.',
+            ], 422);
+        }
+
+        $user->forceFill(['password' => Hash::make($request->password)])->save();
+        $user->tokens()->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Password berhasil diperbarui.',
         ]);
     }
 

@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class ContentsController extends Controller
 {
@@ -24,7 +25,7 @@ class ContentsController extends Controller
             while ($current) {
                 array_unshift($breadcrumbs, ['id' => $current->id, 'name' => $current->name]);
                 if (!$current->parent_id) break;
-                $current = Folder::find($current->parent_id);
+                $current = Folder::where('id', $current->parent_id)->where('user_id', $userId)->first();
             }
         }
 
@@ -66,7 +67,7 @@ class ContentsController extends Controller
             'file_ids.*' => 'uuid|exists:files,id',
             'folder_ids' => 'nullable|array',
             'folder_ids.*' => 'uuid|exists:folders,id',
-            'target_folder_id' => 'nullable|uuid|exists:folders,id',
+            'target_folder_id' => ['nullable', 'uuid', Rule::exists('folders', 'id')->where('user_id', auth()->id())],
         ]);
 
         if ($validator->fails()) {
@@ -87,7 +88,7 @@ class ContentsController extends Controller
             if (!$targetFolder) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Target folder not found or access denied.',
+                    'message' => 'Folder tujuan tidak ditemukan atau akses ditolak.',
                 ], 404);
             }
         }
@@ -123,14 +124,14 @@ class ContentsController extends Controller
                     if ($id === $targetFolderId) {
                         return response()->json([
                             'success' => false,
-                            'message' => 'Cannot move a folder into itself.',
+                            'message' => 'Tidak dapat memindahkan folder ke dalam dirinya sendiri.',
                         ], 422);
                     }
 
                     if ($this->isDescendant($id, $targetFolderId)) {
                         return response()->json([
                             'success' => false,
-                            'message' => 'Cannot move a folder into its own descendant.',
+                            'message' => 'Tidak dapat memindahkan folder ke dalam dirinya sendiri.',
                         ], 422);
                     }
                 }
@@ -166,7 +167,7 @@ class ContentsController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Items moved successfully',
+            'message' => 'File berhasil dipindahkan.',
         ]);
     }
 

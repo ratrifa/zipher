@@ -1,9 +1,10 @@
 "use client"
 
+import { API_BASE } from "@/lib/api"
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Check, Copy } from "lucide-react"
+import { Check, Copy, Download, Eye, EyeOff } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -17,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { savePrivateKey } from "@/lib/crypto"
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -24,7 +26,10 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null)
   const [privateKey, setPrivateKey] = useState<string | null>(null)
   const [isCopied, setIsCopied] = useState(false)
+  const [isDownloaded, setIsDownloaded] = useState(false)
   const [isConfirmed, setIsConfirmed] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   async function generateKeyPair() {
     const keyPair = await window.crypto.subtle.generateKey(
@@ -80,7 +85,7 @@ export default function RegisterPage() {
     try {
       const keys = await generateKeyPair()
 
-      const response = await fetch("http://localhost:8000/api/v1/register", {
+      const response = await fetch(`${API_BASE}/api/v1/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -101,6 +106,7 @@ export default function RegisterPage() {
         throw new Error(data.message || "Registrasi gagal")
       }
 
+      await savePrivateKey(keys.privateKey)
       setPrivateKey(keys.privateKey)
     } catch (err: any) {
       setError(err.message)
@@ -115,6 +121,18 @@ export default function RegisterPage() {
       setIsCopied(true)
       setTimeout(() => setIsCopied(false), 2000)
     }
+  }
+
+  function handleDownloadKey() {
+    if (!privateKey) return
+    const blob = new Blob([privateKey], { type: "application/octet-stream" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = "zipher-private-key.pem"
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 100)
+    setIsDownloaded(true)
   }
 
   function handleFinishRegistration() {
@@ -166,26 +184,38 @@ export default function RegisterPage() {
 
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                placeholder="Masukkan password"
-                autoComplete="new-password"
-                required
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Masukkan password"
+                  autoComplete="new-password"
+                  required
+                  className="pr-10"
+                />
+                <button type="button" tabIndex={-1} onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input
-                id="confirmPassword"
-                name="confirmPassword"
-                type="password"
-                placeholder="Ulangi password"
-                autoComplete="new-password"
-                required
-              />
+              <div className="relative">
+                <Input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type={showConfirmPassword ? "text" : "password"}
+                  placeholder="Ulangi password"
+                  autoComplete="new-password"
+                  required
+                  className="pr-10"
+                />
+                <button type="button" tabIndex={-1} onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
             </div>
 
             <p className="text-right text-xs text-muted-foreground">
@@ -240,6 +270,15 @@ export default function RegisterPage() {
               )}
             </Button>
           </div>
+          <Button
+            type="button"
+            variant={isDownloaded ? "outline" : "default"}
+            className="w-full"
+            onClick={handleDownloadKey}
+          >
+            <Download className="mr-2 size-4" />
+            {isDownloaded ? "Diunduh ✓" : "Unduh Private Key (.pem)"}
+          </Button>
           <div className="flex items-center space-x-2 pt-2">
             <input
               type="checkbox"
@@ -256,7 +295,7 @@ export default function RegisterPage() {
             <Button
               type="button"
               className="w-full"
-              disabled={!isConfirmed}
+              disabled={!isDownloaded || !isConfirmed}
               onClick={handleFinishRegistration}
             >
               Lanjutkan ke Login

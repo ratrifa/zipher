@@ -1,5 +1,6 @@
 "use client"
 
+import { API_BASE } from "@/lib/api"
 import { useMemo, useState, useEffect } from "react"
 import type { LucideIcon } from "lucide-react"
 import {
@@ -332,7 +333,7 @@ function RecentListRow({ item }: { item: RecentItem }) {
         {item.location}
       </p>
 
-      <p className="hidden text-sm text-muted-foreground sm:block sm:text-right">
+      <p className="sm hidden text-sm text-muted-foreground sm:block">
         {item.accessedAt}
       </p>
     </article>
@@ -361,7 +362,7 @@ function RecentGridCard({ item }: { item: RecentItem }) {
       <p className="truncate text-xs text-muted-foreground">{item.detail}</p>
 
       <div className="mt-3 text-xs text-muted-foreground">
-        <p>Diakses: {item.accessedAt}</p>
+        <p>{item.accessedAt}</p>
       </div>
     </article>
   )
@@ -375,19 +376,31 @@ export function RecentSection() {
 
   useEffect(() => {
     async function fetchRecent() {
+      const cached = localStorage.getItem("zipher_cache_recent")
+      if (cached) {
+        try {
+          setItems((JSON.parse(cached) as ApiActivity[]).map(mapActivity))
+          setIsLoading(false)
+        } catch {}
+      } else {
+        setIsLoading(true)
+      }
+
       const token = localStorage.getItem("zipher_token")
       if (!token) return
 
       try {
-        const response = await fetch("http://localhost:8000/api/v1/recent", {
+        const response = await fetch(`${API_BASE}/api/v1/recent`, {
           headers: {
             Authorization: `Bearer ${token}`,
             Accept: "application/json",
           },
         })
         const data = await response.json()
-        if (data.success)
+        if (data.success) {
           setItems((data.data as ApiActivity[]).map(mapActivity))
+          localStorage.setItem("zipher_cache_recent", JSON.stringify(data.data))
+        }
       } catch (error) {
         console.error("Failed to fetch recent activity:", error)
       } finally {
@@ -423,7 +436,7 @@ export function RecentSection() {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Recent</h1>
             <p className="text-sm text-muted-foreground">
-              File dan folder yang pernah dibuka, diedit, atau dibuat.
+              Log aktivitas terbaru file dan folder.
             </p>
           </div>
 
@@ -477,7 +490,7 @@ export function RecentSection() {
                       <span>Nama</span>
                       <span>Aktivitas</span>
                       <span>Lokasi</span>
-                      <span className="text-right">Waktu</span>
+                      <span>Waktu</span>
                     </div>
 
                     {group.items.map((item, index) => (
