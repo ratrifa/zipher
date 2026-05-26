@@ -50,27 +50,33 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       ShellRoute(
         navigatorKey: _shellNavigatorKey,
-        pageBuilder: (_, state, child) => _noTransitionPage(state, DashboardShell(child: child)),
+        pageBuilder: (_, state, child) =>
+            _noTransitionPage(state, DashboardShell(child: child)),
         routes: [
           GoRoute(
             path: '/dashboard/files',
-            pageBuilder: (_, state) => _noTransitionPage(state, const MyFilesScreen()),
+            pageBuilder: (_, state) =>
+                _noTransitionPage(state, const MyFilesScreen()),
           ),
           GoRoute(
             path: '/dashboard/shared',
-            pageBuilder: (_, state) => _noTransitionPage(state, const SharedScreen()),
+            pageBuilder: (_, state) =>
+                _noTransitionPage(state, const SharedScreen()),
           ),
           GoRoute(
             path: '/dashboard/recent',
-            pageBuilder: (_, state) => _noTransitionPage(state, const RecentScreen()),
+            pageBuilder: (_, state) =>
+                _noTransitionPage(state, const RecentScreen()),
           ),
           GoRoute(
             path: '/dashboard/starred',
-            pageBuilder: (_, state) => _noTransitionPage(state, const StarredScreen()),
+            pageBuilder: (_, state) =>
+                _noTransitionPage(state, const StarredScreen()),
           ),
           GoRoute(
             path: '/dashboard/trash',
-            pageBuilder: (_, state) => _noTransitionPage(state, const TrashScreen()),
+            pageBuilder: (_, state) =>
+                _noTransitionPage(state, const TrashScreen()),
           ),
         ],
       ),
@@ -104,7 +110,8 @@ CustomTransitionPage<void> _tabPage(GoRouterState state, Widget child) =>
       transitionsBuilder: (_, animation, __, child) {
         final fade = CurvedAnimation(parent: animation, curve: Curves.easeOut);
         final slide = Tween(begin: const Offset(0, 0.04), end: Offset.zero)
-            .animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic));
+            .animate(
+                CurvedAnimation(parent: animation, curve: Curves.easeOutCubic));
         return FadeTransition(
           opacity: fade,
           child: SlideTransition(position: slide, child: child),
@@ -135,7 +142,8 @@ CustomTransitionPage<void> _slidePage(GoRouterState state, Widget child) =>
         ).chain(CurveTween(curve: Curves.easeOutCubic));
         return FadeTransition(
           opacity: animation,
-          child: SlideTransition(position: animation.drive(tween), child: child),
+          child:
+              SlideTransition(position: animation.drive(tween), child: child),
         );
       },
     );
