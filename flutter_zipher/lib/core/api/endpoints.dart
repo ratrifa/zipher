@@ -17,21 +17,22 @@ class Endpoints {
 
   // Files
   static const files = '$_v1/files';
-  static String fileById(int id) => '$_v1/files/$id';
-  static String fileDownload(int id) => '$_v1/files/$id/download';
-  static String fileKey(int id) => '$_v1/files/$id/key';
-  static String fileStar(int id) => '$_v1/files/$id/star';
-  static String fileRestore(int id) => '$_v1/files/$id/restore';
-  static String fileForceDelete(int id) => '$_v1/files/$id/force';
+  static const filesUpload = '$_v1/files/upload';
+  static String fileById(String id) => '$_v1/files/$id';
+  static String fileDownload(String id) => '$_v1/files/$id/download';
+  static String fileKey(String id) => '$_v1/files/$id/key';
+  static String fileStar(String id) => '$_v1/files/$id/star';
+  static String fileRestore(String id) => '$_v1/files/$id/restore';
+  static String fileForceDelete(String id) => '$_v1/files/$id/force';
   static const filesStarred = '$_v1/files/starred';
   static const filesTrash = '$_v1/files/trash';
 
   // Folders
   static const folders = '$_v1/folders';
-  static String folderById(int id) => '$_v1/folders/$id';
-  static String folderStar(int id) => '$_v1/folders/$id/star';
-  static String folderRestore(int id) => '$_v1/folders/$id/restore';
-  static String folderForceDelete(int id) => '$_v1/folders/$id/force';
+  static String folderById(String id) => '$_v1/folders/$id';
+  static String folderStar(String id) => '$_v1/folders/$id/star';
+  static String folderRestore(String id) => '$_v1/folders/$id/restore';
+  static String folderForceDelete(String id) => '$_v1/folders/$id/force';
   static const foldersTrash = '$_v1/folders/trash';
 
   // Contents (files + folders combined)
@@ -40,10 +41,10 @@ class Endpoints {
 
   // Sharing
   static const share = '$_v1/share';
-  static String shareRevoke(int id) => '$_v1/share/$id';
+  static String shareRevoke(String id) => '$_v1/share/$id';
   static const sharedWithMe = '$_v1/shared/with-me';
   static const sharedByMe = '$_v1/shared/by-me';
-  static String sharedReceivedDelete(int shareId) => '$_v1/shared/received/$shareId';
+  static String sharedReceivedDelete(String shareId) => '$_v1/shared/received/$shareId';
 
   // Recent
   static const recent = '$_v1/recent';

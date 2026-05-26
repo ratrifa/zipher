@@ -1,5 +1,5 @@
 class User {
-  final int id;
+  final String id;
   final String username;
   final String email;
   final String? avatar;
@@ -16,17 +16,17 @@ class User {
     required this.publicKey,
     this.isAdmin = false,
     this.storageUsed = 0,
-    this.storageLimit = 1073741824, // 1 GB default
+    this.storageLimit = 1073741824,
   });
 
   factory User.fromJson(Map<String, dynamic> json) => User(
-        id: _toInt(json['id']),
+        id: json['id']?.toString() ?? '',
         username: json['username']?.toString() ?? '',
         email: json['email']?.toString() ?? '',
         avatar: json['avatar'] as String?,
         publicKey: json['public_key']?.toString() ?? '',
         isAdmin: json['is_admin'] == true || json['is_admin'] == 1,
-        storageUsed: _toInt(json['storage_used'], fallback: 0),
+        storageUsed: _toInt(json['storage_used']),
         storageLimit: _toInt(json['storage_limit'], fallback: 1073741824),
       );
 

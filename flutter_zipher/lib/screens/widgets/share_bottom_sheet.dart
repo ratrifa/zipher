@@ -72,7 +72,7 @@ class _ShareSheetState extends State<_ShareSheet> {
 
       // Get encrypted AES key for this file
       final keyRes = await dio.get(Endpoints.fileKey(widget.file.id));
-      final encryptedAesKeyB64 = keyRes.data['encrypted_key'] as String;
+      final encryptedAesKeyB64 = keyRes.data['aes_key_encrypted'] as String;
       final encryptedAesKey = _base64Decode(encryptedAesKeyB64);
 
       // Decrypt AES key with owner's private key
@@ -85,8 +85,8 @@ class _ShareSheetState extends State<_ShareSheet> {
       // Send share request
       await dio.post(Endpoints.share, data: {
         'file_id': widget.file.id,
-        'shared_with_id': _selected!['id'],
-        'encrypted_key': _base64Encode(reEncryptedKey),
+        'receiver_id': _selected!['id'],
+        'aes_key_encrypted_for_receiver': _base64Encode(reEncryptedKey),
       });
 
       if (mounted) {

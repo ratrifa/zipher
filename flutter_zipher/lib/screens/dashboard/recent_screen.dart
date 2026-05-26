@@ -8,9 +8,20 @@ import '../widgets/file_card.dart';
 
 final _recentProvider = FutureProvider.autoDispose<List<FileItem>>((ref) async {
   final res = await dio.get(Endpoints.recent);
-  return (res.data['files'] as List<dynamic>? ?? [])
-      .map((e) => FileItem.fromJson(e as Map<String, dynamic>))
-      .toList();
+  debugPrint('[RECENT] raw keys: ${res.data?.keys}');
+  debugPrint('[RECENT] data length: ${(res.data['data'] as List?)?.length}');
+  final items = res.data['data'] as List<dynamic>? ?? [];
+  return items.map((e) {
+    final map = e as Map<String, dynamic>;
+    // Activity records have different fields than FileItem, map them explicitly
+    return FileItem.fromJson({
+      'id': map['file_id']?.toString() ?? map['id']?.toString() ?? '',
+      'name': map['file_name']?.toString() ?? '',
+      'mime_type': map['mime_type']?.toString(),
+      'type': (map['is_folder'] == true || map['is_folder'] == 1) ? 'folder' : 'file',
+      'updated_at': map['created_at']?.toString() ?? '',
+    });
+  }).toList();
 });
 
 class RecentScreen extends ConsumerWidget {

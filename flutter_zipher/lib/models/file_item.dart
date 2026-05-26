@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 enum FileType { folder, image, document, spreadsheet, presentation, code, other }
 
 class FileItem {
-  final int id;
+  final String id;
   final String name;
   final bool isFolder;
   final String? mimeType;
@@ -11,7 +11,7 @@ class FileItem {
   final int? itemCount;
   final bool isStarred;
   final DateTime updatedAt;
-  final int? folderId;
+  final String? folderId;
   final List<String> tags;
   final String? ownerUsername;
 
@@ -30,7 +30,7 @@ class FileItem {
   });
 
   factory FileItem.fromJson(Map<String, dynamic> json, {bool isFolder = false}) => FileItem(
-        id: _toInt(json['id']),
+        id: json['id']?.toString() ?? '',
         name: json['name']?.toString() ?? '',
         isFolder: isFolder || (json['type'] == 'folder'),
         mimeType: json['mime_type']?.toString(),
@@ -38,17 +38,10 @@ class FileItem {
         itemCount: _toIntNullable(json['item_count']),
         isStarred: json['is_starred'] == true || json['is_starred'] == 1,
         updatedAt: DateTime.tryParse(json['updated_at']?.toString() ?? '') ?? DateTime.now(),
-        folderId: _toIntNullable(json['folder_id']) ?? _toIntNullable(json['parent_id']),
+        folderId: (json['folder_id'] ?? json['parent_id'])?.toString(),
         tags: (json['tags'] as List<dynamic>?)?.map((t) => t.toString()).toList() ?? [],
         ownerUsername: json['owner']?['username']?.toString(),
       );
-
-  static int _toInt(dynamic v, {int fallback = 0}) {
-    if (v == null) return fallback;
-    if (v is int) return v;
-    if (v is num) return v.toInt();
-    return int.tryParse(v.toString()) ?? fallback;
-  }
 
   static int? _toIntNullable(dynamic v) {
     if (v == null) return null;

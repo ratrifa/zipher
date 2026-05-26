@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/endpoints.dart';
 import '../../core/crypto/crypto_service.dart';
-import '../../core/storage/secure_storage.dart';
 import '../../models/file_item.dart';
 import '../../providers/files_provider.dart';
 import '../widgets/confirm_dialog.dart';
@@ -22,12 +21,13 @@ class MyFilesScreen extends ConsumerStatefulWidget {
 }
 
 class _MyFilesScreenState extends ConsumerState<MyFilesScreen> {
-  final List<({int? id, String name})> _breadcrumb = [
+  final List<({String? id, String name})> _breadcrumb = [
     (id: null, name: 'My Files'),
   ];
   bool _isGrid = true;
+  bool _uploading = false;
 
-  int? get _currentFolderId => _breadcrumb.last.id;
+  String? get _currentFolderId => _breadcrumb.last.id;
 
   void _navigateToFolder(FileItem folder) {
     setState(() {
@@ -61,52 +61,96 @@ class _MyFilesScreenState extends ConsumerState<MyFilesScreen> {
   }
 
   Future<void> _uploadFile() async {
-    final result = await FilePicker.platform.pickFiles(allowMultiple: true);
+    final result = await FilePicker.platform.pickFiles(allowMultiple: true, withData: true);
     if (result == null || result.files.isEmpty) return;
 
+    setState(() => _uploading = true);
+
+    String? publicKey;
+    try {
+      final res = await dio.get(Endpoints.me);
+      publicKey = res.data['data']['public_key'] as String?;
+    } catch (e) {
+      if (mounted) {
+        setState(() => _uploading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal ambil public key: ${ApiClient.errorMessage(e)}')),
+        );
+      }
+      return;
+    }
+    if (publicKey == null) {
+      if (mounted) {
+        setState(() => _uploading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Public key tidak ditemukan')),
+        );
+      }
+      return;
+    }
+
+    int uploaded = 0;
     for (final file in result.files) {
-      if (file.bytes == null && file.path == null) continue;
+      final bytes = file.bytes;
+      if (bytes == null) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Tidak bisa membaca file: ${file.name}')),
+        );
+        continue;
+      }
       try {
-        final privateKeyPem = await SecureStorage.instance.getPrivateKey();
-        if (privateKeyPem == null) {
-          if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Private key tidak ditemukan')),
-          );
-          return;
-        }
-
-        // Read file bytes
-        final bytes = file.bytes ?? await _readFilePath(file.path!);
-
-        // Encrypt file
         final enc = await CryptoService.encryptFile(bytes);
-
-        // Get user's public key to encrypt AES key
-        final res = await dio.get(Endpoints.me);
-        final publicKey = res.data['user']['public_key'] as String;
         final encryptedKey = await CryptoService.encryptAesKeyWithRsa(enc.aesKey, publicKey);
 
-        // Upload
+        final filePayload = Uint8List(enc.iv.length + enc.encrypted.length)
+          ..setRange(0, enc.iv.length, enc.iv)
+          ..setRange(enc.iv.length, enc.iv.length + enc.encrypted.length, enc.encrypted);
+
         final formData = FormData.fromMap({
-          'file': MultipartFile.fromBytes(enc.encrypted, filename: file.name),
-          'encrypted_key': _encodeBase64(encryptedKey),
-          'iv': _encodeBase64(enc.iv),
+          'file': MultipartFile.fromBytes(filePayload, filename: file.name),
+          'name': file.name,
+          'mime_type': _mimeFromName(file.name),
+          'aes_key_encrypted': _encodeBase64(encryptedKey),
           if (_currentFolderId != null) 'folder_id': _currentFolderId,
         });
-        await dio.post(Endpoints.files, data: formData);
+        await dio.post(Endpoints.filesUpload, data: formData);
         ref.invalidate(contentsProvider);
+        uploaded++;
       } catch (e) {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Gagal upload ${file.name}: ${ApiClient.errorMessage(e)}')),
         );
       }
     }
+
+    if (mounted) {
+      setState(() => _uploading = false);
+      if (uploaded > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$uploaded file berhasil diupload')),
+        );
+      }
+    }
   }
 
-  Future<Uint8List> _readFilePath(String path) async {
-    final file = await MultipartFile.fromFile(path);
-    final bytes = await file.finalize().fold(<int>[], (a, b) => [...a, ...b]);
-    return Uint8List.fromList(bytes);
+  static String _mimeFromName(String name) {
+    final ext = name.split('.').last.toLowerCase();
+    const map = {
+      'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png',
+      'gif': 'image/gif', 'webp': 'image/webp', 'svg': 'image/svg+xml',
+      'pdf': 'application/pdf',
+      'doc': 'application/msword',
+      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'xls': 'application/vnd.ms-excel',
+      'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'ppt': 'application/vnd.ms-powerpoint',
+      'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'txt': 'text/plain', 'csv': 'text/csv',
+      'zip': 'application/zip', 'rar': 'application/x-rar-compressed',
+      'mp4': 'video/mp4', 'mp3': 'audio/mpeg',
+      'json': 'application/json',
+    };
+    return map[ext] ?? 'application/octet-stream';
   }
 
   static String _encodeBase64(List<int> bytes) {
@@ -175,6 +219,7 @@ class _MyFilesScreenState extends ConsumerState<MyFilesScreen> {
     return Column(
       children: [
         _buildHeader(),
+        if (_uploading) const LinearProgressIndicator(),
         Expanded(
           child: contents.when(
             loading: () => const Center(child: CircularProgressIndicator()),
