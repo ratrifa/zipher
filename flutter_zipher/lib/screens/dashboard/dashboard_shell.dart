@@ -67,26 +67,7 @@ class _DashboardShellState extends ConsumerState<DashboardShell> {
           child: Divider(height: 1),
         ),
       ),
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 200),
-        switchInCurve: Curves.easeOut,
-        switchOutCurve: Curves.easeOut,
-        layoutBuilder: (currentChild, previousChildren) => Stack(
-          fit: StackFit.expand,
-          children: [
-            if (currentChild != null) currentChild,
-            ...previousChildren, // old page rendered on top, fades out
-          ],
-        ),
-        transitionBuilder: (child, animation) => FadeTransition(
-          opacity: animation,
-          child: child,
-        ),
-        child: KeyedSubtree(
-          key: ValueKey(GoRouterState.of(context).uri.toString()),
-          child: widget.child,
-        ),
-      ),
+      body: widget.child,
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: _onTabChanged,
