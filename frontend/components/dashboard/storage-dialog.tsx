@@ -75,7 +75,6 @@ export function StorageDialog({
         </DialogHeader>
 
         <div className="space-y-5 pt-1">
-          {/* Summary card */}
           <div className="rounded-xl border bg-muted/40 px-5 py-4">
             <div className="flex items-end justify-between">
               <div>
@@ -105,7 +104,6 @@ export function StorageDialog({
             </p>
           </div>
 
-          {/* Breakdown */}
           <div>
             <h3 className="mb-3 text-sm font-semibold">Storage Breakdown</h3>
 

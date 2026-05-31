@@ -158,7 +158,6 @@ export default function UsersPage() {
       )}
 
       <div className="flex flex-col gap-8">
-        {/* Table Active Users */}
         <div className="w-full rounded-2xl border bg-card p-5 shadow-sm">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div className="rounded-md bg-primary/15 px-3 py-1.5 text-[11px] font-semibold tracking-wide text-primary uppercase">
@@ -286,7 +285,6 @@ export default function UsersPage() {
           </div>
         </div>
 
-        {/* Table Blacklisted Users */}
         <div className="w-full rounded-2xl border bg-card p-5 shadow-sm">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div className="rounded-md bg-destructive/15 px-3 py-1.5 text-[11px] font-semibold tracking-wide text-destructive uppercase">

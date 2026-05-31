@@ -466,7 +466,6 @@ function MyFilesContent() {
           }
         }
 
-        // Fallback: download raw (might be old file or missing key)
         const link = document.createElement("a")
         link.href = `data:${data.mime_type};base64,${data.encrypted_data}`
         link.download = data.name
@@ -533,7 +532,6 @@ function MyFilesContent() {
             }
           }
 
-          // Fallback: show raw
           setPreviewItem({
             name: data.name,
             mimeType: data.mime_type,

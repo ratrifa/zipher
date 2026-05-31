@@ -1,7 +1,25 @@
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 
-// Auth Types
+export function handleUnauthorized() {
+  localStorage.removeItem("zipher_token")
+  localStorage.removeItem("zipher.auth.token")
+  localStorage.removeItem("zipher_user")
+  window.location.replace("/")
+}
+
+export async function apiFetch(
+  input: RequestInfo,
+  init?: RequestInit
+): Promise<Response> {
+  const res = await fetch(input, init)
+  if (res.status === 401) {
+    handleUnauthorized()
+    throw new Error("Sesi berakhir. Silakan masuk kembali.")
+  }
+  return res
+}
+
 export type AuthUser = {
   id: string
   username: string
@@ -27,9 +45,8 @@ export type RegisterPayload = {
   password_confirmation: string
 }
 
-// Auth Functions
 export async function getCurrentUser(token: string): Promise<AuthUser> {
-  const res = await fetch(`${API_BASE}/api/v1/me`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/me`, {
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: "application/json",
@@ -65,7 +82,7 @@ export async function registerUser(
 }
 
 export async function logoutUser(token: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/v1/logout`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/logout`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,

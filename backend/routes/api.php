@@ -15,9 +15,9 @@ use App\Http\Middleware\EnsureNotBanned;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
-    // Auth
     Route::post('register', [AuthController::class, 'register']);
     Route::post('login', [AuthController::class, 'login']);
+    Route::post('recover-key', [AuthController::class, 'recoverKey'])->middleware('throttle:10,1');
     Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
     Route::post('verify-reset-key', [AuthController::class, 'verifyResetKey']);
     Route::post('reset-password', [AuthController::class, 'resetPassword']);
@@ -29,17 +29,13 @@ Route::prefix('v1')->group(function () {
         Route::get('users/{id}/public-key', [AuthController::class, 'getPublicKey']);
         Route::post('reports', [ReportController::class, 'store']);
 
-        // Contents (file + folder)
         Route::get('contents', [ContentsController::class, 'index']);
         Route::post('contents/move', [ContentsController::class, 'move']);
 
-        // Smart search
         Route::get('search', [SearchController::class, 'search']);
 
-        // Recent 
         Route::get('recent', [RecentController::class, 'index']);
 
-        // Files
         Route::get('storage/breakdown', [FileController::class, 'storageBreakdown']);
         Route::get('files/trash', [FileController::class, 'trash']);
         Route::get('files/starred', [FileController::class, 'starred']);
@@ -53,7 +49,6 @@ Route::prefix('v1')->group(function () {
         Route::post('files/{id}/restore', [FileController::class, 'restore']);
         Route::delete('files/{id}/force', [FileController::class, 'forceDelete']);
 
-        // Folders
         Route::post('folders/{id}/star', [FolderController::class, 'toggleStar']);
         Route::get('files/{id}/tags', [FileController::class, 'tags']);
         Route::put('files/{id}/tags', [FileController::class, 'replaceTags']);
@@ -66,19 +61,16 @@ Route::prefix('v1')->group(function () {
         Route::post('folders/{id}/restore', [FolderController::class, 'restore']);
         Route::delete('folders/{id}/force', [FolderController::class, 'forceDelete']);
 
-        // Profile
         Route::patch('profile', [ProfileController::class, 'update']);
         Route::post('profile/password', [ProfileController::class, 'updatePassword']);
         Route::post('profile/avatar', [ProfileController::class, 'updateAvatar']);
 
-        // Sharing
         Route::post('share', [ShareController::class, 'share']);
         Route::get('shared/with-me', [ShareController::class, 'sharedWithMe']);
         Route::get('shared/by-me', [ShareController::class, 'sharedByMe']);
         Route::delete('share/{id}', [ShareController::class, 'revoke']);
         Route::delete('shared/received/{id}', [ShareController::class, 'leave']);
 
-        // Admin routes
         Route::middleware(AdminMiddleware::class)->group(function () {
             Route::get('admin/dashboard', [AdminController::class, 'dashboard']);
             Route::get('admin/reports', [AdminController::class, 'recentReports']);

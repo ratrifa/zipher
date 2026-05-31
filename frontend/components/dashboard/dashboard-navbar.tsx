@@ -196,7 +196,6 @@ export function DashboardNavbar({
   return (
     <header className="border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80">
       <div className="flex h-18 items-center gap-3 px-3 sm:gap-4 sm:px-4 md:px-6">
-        {/* Mobile Menu Button */}
         <Button
           variant="ghost"
           size="icon"
@@ -231,7 +230,6 @@ export function DashboardNavbar({
         </Suspense>
 
         <div className="ml-auto flex items-center gap-2 sm:gap-3">
-          {/* Mobile Search Button */}
           <Suspense fallback={null}>
             <MobileSearchInput />
           </Suspense>

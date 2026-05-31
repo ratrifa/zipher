@@ -54,12 +54,10 @@ export function DashboardShell({ children }: DashboardShellProps) {
   return (
     <div className="h-svh overflow-hidden bg-background">
       <div className="grid h-full md:grid-cols-[280px_1fr]">
-        {/* Desktop Sidebar */}
         <div className="hidden h-svh border-r border-sidebar-border md:sticky md:top-0 md:block">
           <DashboardSidebar onClose={() => setSidebarOpen(false)} />
         </div>
 
-        {/* Mobile Sidebar Backdrop and Drawer */}
         {sidebarOpen && (
           <>
             <div

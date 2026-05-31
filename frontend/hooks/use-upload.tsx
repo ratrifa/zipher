@@ -4,7 +4,7 @@ import { createContext, useContext, useState, ReactNode } from "react"
 
 type UploadProgress = {
   fileName: string
-  progress: number // Overall progress (0-100)
+  progress: number
   currentFileIndex: number
   totalFiles: number
   isUploading: boolean

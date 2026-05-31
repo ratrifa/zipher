@@ -12,9 +12,6 @@ use Meilisearch\Client;
 #[Description('Configure Meilisearch settings like filterable attributes')]
 class SearchSetupCommand extends Command
 {
-    /**
-     * Execute the console command.
-     */
     public function handle()
     {
         $host = config('scout.meilisearch.host');

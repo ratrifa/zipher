@@ -16,10 +16,12 @@ class AuthController extends Controller
     public function register(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'username' => 'required|string|min:8|max:50|unique:users',
-            'email' => 'required|email|unique:users|unique:email_blacklists,email',
-            'password' => 'required|string|min:8|confirmed',
-            'public_key' => 'required|string',
+            'username'              => 'required|string|min:8|max:50|unique:users',
+            'email'                 => 'required|email|unique:users|unique:email_blacklists,email',
+            'password'              => 'required|string|min:8|confirmed',
+            'public_key'            => 'required|string',
+            'encrypted_private_key' => 'required|string',
+            'key_salt'              => 'required|string|size:64',
         ], [
             'email.unique' => 'Email ini sudah terdaftar atau telah diblacklist.',
         ]);
@@ -32,10 +34,12 @@ class AuthController extends Controller
         }
 
         $user = User::create([
-            'username' => $request->username,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-            'public_key' => $request->public_key,
+            'username'              => $request->username,
+            'email'                 => $request->email,
+            'password'              => Hash::make($request->password),
+            'public_key'            => $request->public_key,
+            'encrypted_private_key' => $request->encrypted_private_key,
+            'key_salt'              => $request->key_salt,
         ]);
 
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -305,6 +309,31 @@ class AuthController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Password berhasil diperbarui.',
+        ]);
+    }
+
+    public function recoverKey(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'message' => $validator->errors()->first()], 422);
+        }
+
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user || $user->is_banned || !$user->encrypted_private_key || !$user->key_salt) {
+            return response()->json(['success' => false, 'message' => 'Akun tidak ditemukan atau tidak memiliki kunci tersimpan.'], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'encrypted_private_key' => $user->encrypted_private_key,
+                'key_salt'              => $user->key_salt,
+            ],
         ]);
     }
 

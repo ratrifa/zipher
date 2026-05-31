@@ -181,13 +181,10 @@ class AdminController extends Controller
             ], 422);
         }
 
-        // Add to blacklist
         \App\Models\EmailBlacklist::firstOrCreate(['email' => $user->email]);
 
-        // Revoke all tokens
         $user->tokens()->delete();
 
-        // Delete all user files physically and from DB
         $files = File::where('user_id', $user->id)->withTrashed()->get();
         foreach ($files as $file) {
             if ($file->storage_path) {
@@ -196,17 +193,14 @@ class AdminController extends Controller
             $file->forceDelete();
         }
 
-        // Delete all user folders
         \App\Models\Folder::where('user_id', $user->id)->withTrashed()->forceDelete();
 
-        // Delete all sharing records (both sent and received)
         \App\Models\SharedFile::where('owner_id', $user->id)
             ->orWhere('receiver_id', $user->id)
             ->delete();
 
         $user->forceFill(['is_banned' => true])->save();
 
-        // If banning from a report, update all related reports for this user's files
         if ($request->has('report_id')) {
             Report::where('status', 'pending')
                 ->whereHas('file', function($q) use ($user) {
@@ -244,9 +238,6 @@ class AdminController extends Controller
             \Illuminate\Support\Facades\Storage::disk('local')->delete($file->storage_path);
         }
 
-        // If deleting from a report, we should clear the reports before the cascade
-        // or just accept that the cascade happens. 
-        // To prevent 404 in subsequent frontend calls, we can manually mark as reviewed if it exists.
         if ($request->has('report_id')) {
             Report::where('id', $request->report_id)->update([
                 'status' => 'reviewed',

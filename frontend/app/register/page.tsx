@@ -18,13 +18,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { savePrivateKey } from "@/lib/crypto"
+import { savePrivateKey, generateSeedPhrase, encryptPrivateKeyWithSeedPhrase } from "@/lib/crypto"
 
 export default function RegisterPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [privateKey, setPrivateKey] = useState<string | null>(null)
+  const [seedPhrase, setSeedPhrase] = useState<string | null>(null)
+  const [isSeedPhraseCopied, setIsSeedPhraseCopied] = useState(false)
   const [isCopied, setIsCopied] = useState(false)
   const [isDownloaded, setIsDownloaded] = useState(false)
   const [isConfirmed, setIsConfirmed] = useState(false)
@@ -84,6 +86,8 @@ export default function RegisterPage() {
 
     try {
       const keys = await generateKeyPair()
+      const mnemonic = generateSeedPhrase()
+      const { encryptedKey, saltHex } = await encryptPrivateKeyWithSeedPhrase(keys.privateKey, mnemonic)
 
       const response = await fetch(`${API_BASE}/api/v1/register`, {
         method: "POST",
@@ -97,6 +101,8 @@ export default function RegisterPage() {
           password,
           password_confirmation: confirmPassword,
           public_key: keys.publicKey,
+          encrypted_private_key: encryptedKey,
+          key_salt: saltHex,
         }),
       })
 
@@ -108,11 +114,31 @@ export default function RegisterPage() {
 
       await savePrivateKey(keys.privateKey)
       setPrivateKey(keys.privateKey)
+      setSeedPhrase(mnemonic)
     } catch (err: any) {
       setError(err.message)
     } finally {
       setIsLoading(false)
     }
+  }
+
+  function handleCopySeedPhrase() {
+    if (seedPhrase) {
+      navigator.clipboard.writeText(seedPhrase)
+      setIsSeedPhraseCopied(true)
+    }
+  }
+
+  function handleDownloadSeedPhrase() {
+    if (!seedPhrase) return
+    const blob = new Blob([seedPhrase], { type: "text/plain" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = "zipher-seed-phrase.txt"
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(url), 100)
+    setIsSeedPhraseCopied(true)
   }
 
   function handleCopyKey() {
@@ -240,48 +266,80 @@ export default function RegisterPage() {
       <Dialog open={!!privateKey} onOpenChange={() => {}}>
         <DialogContent className="w-full max-w-md p-4 sm:p-6 sm:max-w-md" showCloseButton={false}>
           <DialogHeader>
-            <DialogTitle className="text-base sm:text-lg">Simpan Private Key Anda</DialogTitle>
+            <DialogTitle className="text-base sm:text-lg">Simpan Seed Phrase & Private Key</DialogTitle>
             <DialogDescription className="text-xs sm:text-sm">
-              Private key ini digunakan untuk mendekripsi file Anda. Jangan
-              berikan kepada siapapun. Jika hilang, file Anda tidak dapat dibuka
-              kembali.
+              Seed phrase digunakan untuk memulihkan private key jika hilang.
+              Simpan keduanya di tempat yang aman dan jangan bagikan kepada siapapun.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:space-x-2">
-            <div className="grid flex-1 gap-2">
-              <Label htmlFor="private-key" className="sr-only">
-                Private Key
-              </Label>
+
+          <div className="space-y-2">
+            <Label className="text-xs sm:text-sm font-medium">Seed Phrase (24 kata)</Label>
+            <div className="grid grid-cols-3 gap-1 rounded-md border bg-muted p-3">
+              {seedPhrase?.split(" ").map((word, i) => (
+                <div key={i} className="flex gap-1 text-xs">
+                  <span className="w-5 shrink-0 text-right text-muted-foreground">{i + 1}.</span>
+                  <span className="font-mono">{word}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={isSeedPhraseCopied ? "outline" : "default"}
+                size="sm"
+                className="flex-1 text-xs"
+                onClick={handleCopySeedPhrase}
+              >
+                {isSeedPhraseCopied ? (
+                  <><Check className="mr-1 size-3" /> Tersalin</>
+                ) : (
+                  <><Copy className="mr-1 size-3" /> Salin Seed Phrase</>
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="flex-1 text-xs"
+                onClick={handleDownloadSeedPhrase}
+              >
+                <Download className="mr-1 size-3" /> Unduh (.txt)
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs sm:text-sm font-medium">Private Key</Label>
+            <div className="flex gap-2">
               <Input
-                id="private-key"
                 value={privateKey || ""}
                 readOnly
                 className="font-mono text-[10px] sm:text-xs"
               />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="shrink-0 px-2"
+                onClick={handleCopyKey}
+              >
+                {isCopied ? <Check className="size-3" /> : <Copy className="size-3" />}
+              </Button>
             </div>
             <Button
               type="button"
+              variant={isDownloaded ? "outline" : "secondary"}
               size="sm"
-              className="px-2 sm:px-3 text-xs sm:text-sm"
-              onClick={handleCopyKey}
+              className="w-full text-xs"
+              onClick={handleDownloadKey}
             >
-              {isCopied ? (
-                <Check className="size-3 sm:size-4" />
-              ) : (
-                <Copy className="size-3 sm:size-4" />
-              )}
+              <Download className="mr-1 size-3" />
+              {isDownloaded ? "Diunduh ✓" : "Unduh Private Key (.pem)"}
             </Button>
           </div>
-          <Button
-            type="button"
-            variant={isDownloaded ? "outline" : "default"}
-            className="w-full text-xs sm:text-sm"
-            onClick={handleDownloadKey}
-          >
-            <Download className="mr-2 size-3 sm:size-4" />
-            {isDownloaded ? "Diunduh ✓" : "Unduh Private Key (.pem)"}
-          </Button>
-          <div className="flex items-center space-x-2 pt-2">
+
+          <div className="flex items-center space-x-2 pt-1">
             <input
               type="checkbox"
               id="confirm-saved"
@@ -289,15 +347,16 @@ export default function RegisterPage() {
               checked={isConfirmed}
               onChange={(e) => setIsConfirmed(e.target.checked)}
             />
-            <Label htmlFor="confirm-saved" className="text-xs font-normal sm:text-xs">
-              Saya sudah menyimpan private key dengan aman
+            <Label htmlFor="confirm-saved" className="text-xs font-normal">
+              Saya sudah menyimpan seed phrase dengan aman
             </Label>
           </div>
+
           <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
             <Button
               type="button"
               className="w-full text-xs sm:text-sm"
-              disabled={!isDownloaded || !isConfirmed}
+              disabled={!isSeedPhraseCopied || !isConfirmed}
               onClick={handleFinishRegistration}
             >
               Lanjutkan ke Login

@@ -100,7 +100,6 @@ export function ShareDialog({
 
     const token = localStorage.getItem("zipher_token")
     try {
-      // 1. Fetch AES key file
       const response = await fetch(`${API_BASE}/api/v1/files/${fileId}/key`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -120,7 +119,6 @@ export function ShareDialog({
         throw new Error("Kunci enkripsi file tidak ditemukan di server")
       }
 
-      // 2. Decrypt AES key dengan private key
       let aesKey: string
       try {
         const privKey = preloadedKey!
@@ -132,11 +130,9 @@ export function ShareDialog({
         )
       }
 
-      // 3. Encrypt AES key dengan public key penerima
       const receiverPubKey = await importPublicKey(selectedUser.public_key)
       const encryptedForReceiver = await encryptAESKey(aesKey, receiverPubKey)
 
-      // 4. Send ke backend
       const shareResponse = await fetch(`${API_BASE}/api/v1/share`, {
         method: "POST",
         headers: {

@@ -211,7 +211,7 @@ export default function ProfilePage() {
             <ProfileSettingRow
               title="Username"
               value={
-                <span className="text-xs font-medium text-white sm:text-[15px]">
+                <span className="text-xs font-medium text-slate-900 sm:text-[15px]">
                   {user?.username || "..."}
                 </span>
               }
@@ -222,7 +222,7 @@ export default function ProfilePage() {
             <ProfileSettingRow
               title="Email"
               value={
-                <span className="inline-flex items-center gap-2 text-xs font-medium text-white sm:text-[15px]">
+                <span className="inline-flex items-center gap-2 text-xs font-medium text-slate-900 sm:text-[15px]">
                   <Mail className="size-3 text-slate-500 sm:size-4" />
                   {user?.email || "..."}
                 </span>
@@ -244,17 +244,14 @@ export default function ProfilePage() {
         </ProfileSection>
       </div>
 
-      {/* Modals Overlay - More Responsive */}
       {activeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-          {/* Modal Background Click to Close */}
           <div
             className="absolute inset-0 cursor-pointer"
             onClick={() => setActiveModal(null)}
           />
 
           <div className="relative z-10 w-full max-w-md max-h-[90vh] animate-in rounded-xl bg-white p-4 shadow-xl duration-200 zoom-in-95 fade-in overflow-y-auto sm:p-6">
-            {/* Content: Ganti Foto */}
             {activeModal === "foto" && (
               <div className="flex flex-col gap-4 sm:gap-6">
                 <div>
@@ -311,7 +308,6 @@ export default function ProfilePage() {
               </div>
             )}
 
-            {/* Content: Ganti Nama */}
             {activeModal === "nama" && (
               <form
                 className="flex flex-col gap-4 sm:gap-6"
@@ -365,7 +361,6 @@ export default function ProfilePage() {
               </form>
             )}
 
-            {/* Content: Ganti Email */}
             {activeModal === "email" && (
               <form
                 className="flex flex-col gap-4 sm:gap-6"
@@ -429,7 +424,6 @@ export default function ProfilePage() {
               </form>
             )}
 
-            {/* Content: Ganti Password */}
             {activeModal === "password" && (
               <form
                 className="flex flex-col gap-4 sm:gap-6"

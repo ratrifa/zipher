@@ -534,7 +534,6 @@ export function SharingSection() {
         </div>
       ) : (
         <div className="space-y-8 pb-8">
-          {/* Section: Diterima */}
           {receivedItems.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center gap-3">
@@ -586,7 +585,6 @@ export function SharingSection() {
             </div>
           )}
 
-          {/* Section: Dibagikan */}
           {sentItems.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center gap-3">

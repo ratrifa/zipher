@@ -11,9 +11,6 @@ use Illuminate\Validation\Rules\Password;
 
 class ProfileController extends Controller
 {
-    /**
-     * Update user profile information (username, email).
-     */
     public function update(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -39,9 +36,6 @@ class ProfileController extends Controller
         ]);
     }
 
-    /**
-     * Update user password.
-     */
     public function updatePassword(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -75,9 +69,6 @@ class ProfileController extends Controller
         ]);
     }
 
-    /**
-     * Update user avatar.
-     */
     public function updateAvatar(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [

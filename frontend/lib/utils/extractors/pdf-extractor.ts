@@ -1,20 +1,15 @@
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Use unpkg CDN which is often more reliable for specific package versions
-// and ensure we're using the correct path for version 5.x
 const PDFJS_VERSION = '5.7.284';
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${PDFJS_VERSION}/build/pdf.worker.min.mjs`;
 
-/**
- * Extracts raw text from a PDF file.
- */
 export async function extractTextFromPDF(file: File): Promise<string> {
   try {
     const arrayBuffer = await file.arrayBuffer();
     const loadingTask = pdfjsLib.getDocument({ 
       data: arrayBuffer,
       useSystemFonts: true,
-      disableFontFace: true // Sometimes helps with performance/stability in extraction
+      disableFontFace: true
     });
     
     const pdf = await loadingTask.promise;

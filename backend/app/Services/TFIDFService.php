@@ -87,7 +87,6 @@ class TFIDFService
         similar_text($aLower, $bLower, $percent);
         $simScore = $percent / 100.0;
 
-        // Per-word Levenshtein: compare query ($b) against each word in filename stem ($a)
         $stem  = strtolower(pathinfo($a, PATHINFO_FILENAME));
         $words = preg_split('/[\s\-_.]+/', $stem, -1, PREG_SPLIT_NO_EMPTY);
         $levScore = 0.0;

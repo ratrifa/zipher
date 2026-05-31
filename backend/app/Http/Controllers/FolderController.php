@@ -188,7 +188,7 @@ class FolderController extends Controller
             ->where('user_id', auth()->id())
             ->where(function ($q) {
                 $q->whereNull('parent_id')
-                  ->orWhereHas('parent'); // parent exists and is not soft-deleted
+                  ->orWhereHas('parent');
             })
             ->with('parent')
             ->orderBy('deleted_at', 'desc')

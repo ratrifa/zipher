@@ -69,7 +69,6 @@ class SearchController extends Controller
                 'folder'   => '/\b(folder|direktori|directory|dir)\b/i',
             ];
 
-            // Quote search: "phrase" → word-coverage scoring against file keywords
             if (preg_match('/^"(.+)"$/', $rawQuery, $m)) {
                 $phraseWords = array_values(array_filter(
                     preg_split('/\s+/', strtolower(trim($m[1]))),
@@ -103,7 +102,6 @@ class SearchController extends Controller
                 return response()->json(['success' => true, 'data' => array_values($results)]);
             }
 
-            // Short-query guard: < 3 chars → exact name match only, no TF-IDF
             if (strlen($rawQuery) < 3) {
                 $files = File::where('user_id', $userId)
                     ->where('name', 'LIKE', "%{$rawQuery}%")
@@ -134,7 +132,6 @@ class SearchController extends Controller
                 $filesQuery->where('folder_id', $folderId);
             }
 
-            // Push category filter to DB — avoids loading all files for typed searches
             if ($categoryFilter && $categoryFilter !== 'folder') {
                 $mimes = $mimeCategories[$categoryFilter]['mimes'];
                 $exts  = $mimeCategories[$categoryFilter]['exts'];
@@ -146,7 +143,6 @@ class SearchController extends Controller
                 });
             }
 
-            // Push extension filter to DB
             if ($isExtSearch) {
                 $filesQuery->where('name', 'LIKE', "%.$queryExt");
             }
@@ -187,19 +183,15 @@ class SearchController extends Controller
                 }
                 $fileResults = [];
             } elseif ($isExtSearch) {
-                // Already filtered by extension in DB
                 $fileResults  = $filesData->values()->toArray();
                 $folderResults = [];
             } elseif ($categoryFilter && !$searchTerm) {
-                // Already filtered by category in DB
                 $fileResults  = $filesData->values()->toArray();
                 $folderResults = [];
             } elseif ($categoryFilter && $searchTerm) {
-                // Category-filtered subset → TF-IDF
                 $fileResults  = $this->tfidf->search($filesData->toArray(), $searchTerm);
                 $folderResults = [];
             } else {
-                // General search — TF-IDF on all user files
                 $exactMatches = $filesData->filter(function ($f) use ($queryLower) {
                     if (strtolower($f['mime_type']) === $queryLower) return true;
                     foreach ($f['tags'] as $tag) {
@@ -248,7 +240,7 @@ class SearchController extends Controller
             ]);
             return response()->json([
                 'success' => false,
-                'message' => 'Terjadi kesalahan server saat pencarian: ' . $e->getMessage(),
+                'message' => 'Terjadi kesalahan server saat pencarian.',
             ], 500);
         }
     }

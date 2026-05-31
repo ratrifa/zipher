@@ -329,15 +329,17 @@ export default function Page() {
                     {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                   </button>
                 </div>
-                <p className="text-right text-xs text-muted-foreground">
-                  Belum punya akun?{" "}
-                  <Link
-                    href="/register"
-                    className="font-medium text-foreground hover:underline"
-                  >
-                    Daftar
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <Link href="/recover-key" className="hover:underline">
+                    Lupa private key?
                   </Link>
-                </p>
+                  <span>
+                    Belum punya akun?{" "}
+                    <Link href="/register" className="font-medium text-foreground hover:underline">
+                      Daftar
+                    </Link>
+                  </span>
+                </div>
               </div>
             )}
 

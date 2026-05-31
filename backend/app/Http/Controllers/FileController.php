@@ -7,7 +7,6 @@ use App\Models\FileActivity;
 use App\Models\FileKeyword;
 use App\Models\FileTag;
 use App\Models\Folder;
-use App\Services\TFIDFService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,10 +18,6 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class FileController extends Controller
 {
-    public function __construct(
-        private TFIDFService $tfidf
-    ) {}
-
     public function index(Request $request): JsonResponse
     {
         $folderId = $request->query('folder_id');
@@ -44,7 +39,7 @@ class FileController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'file' => 'required|file|max:1048576', // 1GB 
+            'file' => 'required|file|max:1048576',
             'name' => 'required|string|max:255',
             'mime_type' => 'required|string',
             'aes_key_encrypted' => 'required|string',
@@ -52,7 +47,6 @@ class FileController extends Controller
             'tags'         => 'nullable|array|max:50',
             'tags.*.name'  => 'required_with:tags|string|max:100',
             'tags.*.score' => 'required_with:tags|numeric|min:0',
-            'text_content' => 'nullable|string|max:500000',
         ]);
 
         if ($validator->fails()) {
@@ -134,10 +128,14 @@ class FileController extends Controller
                 }
             }
         } catch (\Exception $e) {
+            \Log::error('File upload failed', [
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ]);
             Storage::disk('local')->delete($path);
             return response()->json([
                 'success' => false,
-                'message' => 'Gagal mengunggah: ' . $e->getMessage(),
+                'message' => 'Gagal mengunggah file.',
             ], 500);
         }
 
@@ -356,7 +354,7 @@ public function update(Request $request, string $id): JsonResponse
             ->where('user_id', auth()->id())
             ->where(function ($q) {
                 $q->whereNull('folder_id')
-                  ->orWhereHas('folder'); // folder exists and is not soft-deleted
+                  ->orWhereHas('folder');
             })
             ->with(['folder', 'tags'])
             ->orderBy('deleted_at', 'desc')

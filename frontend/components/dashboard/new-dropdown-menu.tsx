@@ -213,7 +213,6 @@ export function NewDropdownMenu({
           throw new Error(`File ${file.name} terlalu besar (Maksimal 1GB)`)
         }
 
-        // Fetch public key untuk encrypt
         const pubKeyPem = await fetchUserPublicKey(token || "")
         if (!pubKeyPem) {
           throw new Error("Gagal mengambil kunci publik untuk enkripsi")
@@ -230,21 +229,16 @@ export function NewDropdownMenu({
           }
         }
 
-        // ENCRYPTION START
-        // 1. File upload -> Generate AES key random
         const aesKey = await generateAESKey()
         const exportedAesKey = await exportAESKey(aesKey)
 
-        // 2. Encrypt AES key dengan public key RSA
         const aesKeyEncrypted = await encryptAESKey(exportedAesKey, pubKey)
 
-        // 3. Encrypt file dengan AES Key
         const fileBuffer = await file.arrayBuffer()
         const encryptedFileBuffer = await encryptData(fileBuffer, aesKey)
         const encryptedFile = new File([encryptedFileBuffer], file.name, {
           type: file.type || "application/octet-stream",
         })
-        // ENCRYPTION END
 
         const formData = new FormData()
         formData.append("file", encryptedFile)
