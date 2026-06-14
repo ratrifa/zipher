@@ -5,6 +5,7 @@ import 'core/theme/app_theme.dart';
 import 'providers/auth_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
+import 'screens/auth/recover_keys_screen.dart';
 import 'screens/dashboard/dashboard_shell.dart';
 import 'screens/dashboard/my_files_screen.dart';
 import 'screens/dashboard/shared_screen.dart';
@@ -33,10 +34,14 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       final isLoggedIn = authState.valueOrNull != null;
       final isAuthRoute = state.matchedLocation == '/login' ||
-          state.matchedLocation == '/register';
+          state.matchedLocation == '/register' ||
+          state.matchedLocation == '/recover-key';
 
       if (!isLoggedIn && !isAuthRoute) return '/login';
-      if (isLoggedIn && isAuthRoute) return '/dashboard/files';
+      if (isLoggedIn && isAuthRoute) {
+        if (state.matchedLocation == '/register') return null;
+        return '/dashboard/files';
+      }
       return null;
     },
     routes: [
@@ -47,6 +52,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/register',
         pageBuilder: (_, state) => _fadePage(state, const RegisterScreen()),
+      ),
+      GoRoute(
+        path: '/recover-key',
+        pageBuilder: (_, state) => _fadePage(state, const RecoverKeysScreen()),
       ),
       ShellRoute(
         navigatorKey: _shellNavigatorKey,

@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/api/api_client.dart';
@@ -23,8 +25,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   bool _loading = false;
   String? _error;
   String? _generatedPrivateKey;
+  String? _generatedSeedPhrase;
   bool _confirmed = false;
-  bool _copied = false;
+  bool _copiedSeed = false;
+  bool _copiedKey = false;
 
   @override
   void dispose() {
@@ -48,7 +52,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         username: _usernameCtrl.text.trim(),
         password: _passCtrl.text,
       );
-      setState(() => _generatedPrivateKey = keyPair.privateKeyPem);
+      setState(() {
+        _generatedPrivateKey = keyPair.privateKeyPem;
+        _generatedSeedPhrase = keyPair.seedPhrase;
+      });
     } catch (e) {
       setState(() => _error = ApiClient.errorMessage(e));
     } finally {
@@ -56,13 +63,45 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     }
   }
 
-  Future<void> _copyKey() async {
-    await Clipboard.setData(ClipboardData(text: _generatedPrivateKey!));
-    setState(() => _copied = true);
+  Future<void> _copySeed() async {
+    await Clipboard.setData(ClipboardData(text: _generatedSeedPhrase!));
+    setState(() => _copiedSeed = true);
     await Future.delayed(const Duration(seconds: 2));
-    if (mounted) setState(() => _copied = false);
+    if (mounted) setState(() => _copiedSeed = false);
   }
 
+  Future<void> _copyKey() async {
+    await Clipboard.setData(ClipboardData(text: _generatedPrivateKey!));
+    setState(() => _copiedKey = true);
+    await Future.delayed(const Duration(seconds: 2));
+    if (mounted) setState(() => _copiedKey = false);
+  }
+
+  Future<void> _downloadFile(String content, String filename) async {
+    try {
+      Directory? dir;
+      if (Platform.isAndroid || Platform.isIOS) {
+        dir = await getApplicationDocumentsDirectory();
+      } else {
+        dir = await getDownloadsDirectory();
+      }
+      if (dir != null) {
+        final file = File('${dir.path}/$filename');
+        await file.writeAsString(content);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Disimpan di ${file.path}')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gagal menyimpan file')),
+        );
+      }
+    }
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -173,64 +212,144 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }
 
   Widget _buildKeyDialog() {
+    final words = _generatedSeedPhrase!.split(' ');
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(28),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Icon(Icons.key_rounded, size: 40, color: Color(0xFF1a1a1a)),
-            const SizedBox(height: 16),
             const Text(
-              'Simpan Private Key Anda',
+              'Simpan Seed Phrase & Private Key',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-              textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Text(
-              'Private key ini digunakan untuk mengakses file Anda. Jangan bagikan kepada siapapun.',
-              style: TextStyle(color: Colors.grey[600], fontSize: 13),
-              textAlign: TextAlign.center,
+              'Seed phrase digunakan untuk memulihkan private key jika hilang. Simpan keduanya di tempat yang aman dan jangan bagikan kepada siapapun.',
+              style: TextStyle(color: Colors.grey[600], fontSize: 13, height: 1.5),
             ),
             const SizedBox(height: 20),
+            const Text('Seed Phrase (24 kata)', style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: const Color(0xFFf3f4f6),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFe5e7eb)),
               ),
-              child: Text(
-                _generatedPrivateKey!,
-                style: const TextStyle(fontFamily: 'monospace', fontSize: 10, height: 1.5),
-                maxLines: 10,
-                overflow: TextOverflow.ellipsis,
+              child: GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  childAspectRatio: 3.5,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                ),
+                itemCount: words.length,
+                itemBuilder: (context, i) {
+                  return Row(
+                    children: [
+                      Text('${i + 1}. ', style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+                      Expanded(
+                        child: Text(words[i], style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
             const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: _copyKey,
-              icon: Icon(_copied ? Icons.check_rounded : Icons.copy_rounded, size: 18),
-              label: Text(_copied ? 'Tersalin!' : 'Salin Private Key'),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1a1a1a),
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: _copySeed,
+                    icon: Icon(_copiedSeed ? Icons.check_rounded : Icons.copy_rounded, size: 16),
+                    label: Text(_copiedSeed ? 'Tersalin' : 'Salin Seed Phrase', style: const TextStyle(fontSize: 13)),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _downloadFile(_generatedSeedPhrase!, 'zipher_seed_phrase.txt'),
+                    icon: const Icon(Icons.download_rounded, size: 16),
+                    label: const Text('Unduh (.txt)', style: TextStyle(fontSize: 13)),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
+            const Text('Private Key', style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: const Color(0xFFe5e7eb)),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      _generatedPrivateKey!.replaceAll('\n', ''),
+                      style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: _copyKey,
+                  icon: Icon(_copiedKey ? Icons.check_rounded : Icons.copy_rounded, size: 20),
+                  style: IconButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: const BorderSide(color: Color(0xFFe5e7eb)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                backgroundColor: const Color(0xFFf3f4f6),
+                side: BorderSide.none,
+              ),
+              onPressed: () => _downloadFile(_generatedPrivateKey!, 'zipher_private_key.pem'),
+              icon: const Icon(Icons.download_rounded, size: 16),
+              label: const Text('Unduh Private Key (.pem)', style: TextStyle(fontSize: 13)),
+            ),
+            const SizedBox(height: 20),
             Row(
               children: [
                 Checkbox(
                   value: _confirmed,
                   onChanged: (v) => setState(() => _confirmed = v ?? false),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
+                const Expanded(
                   child: Text(
-                    'Saya sudah menyimpan private key ini di tempat yang aman',
-                    style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                    'Saya sudah menyimpan seed phrase dengan aman',
+                    style: TextStyle(color: Colors.grey, fontSize: 13),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 16),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _confirmed ? Colors.grey[600] : const Color(0xFFe5e7eb),
+                foregroundColor: _confirmed ? Colors.white : Colors.grey[500],
+                minimumSize: const Size(double.infinity, 44),
+                elevation: 0,
+              ),
               onPressed: _confirmed ? () => context.go('/login') : null,
               child: const Text('Lanjutkan ke Login', style: TextStyle(fontWeight: FontWeight.w600)),
             ),

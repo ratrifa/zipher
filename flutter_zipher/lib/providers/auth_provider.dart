@@ -45,7 +45,7 @@ class AuthNotifier extends AsyncNotifier<User?> {
     }
   }
 
-  Future<({String publicKeyPem, String privateKeyPem})> register({
+  Future<({String publicKeyPem, String privateKeyPem, String seedPhrase})> register({
     required String email,
     required String username,
     required String password,
@@ -69,6 +69,19 @@ class AuthNotifier extends AsyncNotifier<User?> {
       await _cacheUser(user);
       state = AsyncData(user);
       return keyPair;
+    } catch (e, st) {
+      state = AsyncError(e, st);
+      rethrow;
+    }
+  }
+
+  Future<void> recoverPrivateKeyFromSeedPhrase(String seedPhrase) async {
+    state = const AsyncLoading();
+    try {
+      final keyPair = await CryptoService.generateKeyPair(seedPhrase);
+      await SecureStorage.instance.savePrivateKey(keyPair.privateKeyPem);
+      final user = state.valueOrNull;
+      state = AsyncData(user);
     } catch (e, st) {
       state = AsyncError(e, st);
       rethrow;

@@ -1,13 +1,17 @@
 import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
+import 'package:bip39/bip39.dart' as bip39;
 import 'package:flutter/foundation.dart';
 import 'package:pointycastle/export.dart';
 
 class CryptoService {
   // RSA-2048 key pair generation
-  static Future<({String publicKeyPem, String privateKeyPem})> generateKeyPair() {
-    return compute(_generateKeyPairIsolate, null);
+  static Future<({String publicKeyPem, String privateKeyPem, String seedPhrase})> generateKeyPair([String? seedPhrase]) {
+    if (seedPhrase != null && !bip39.validateMnemonic(seedPhrase)) {
+      throw const FormatException('Seed phrase tidak valid atau ada kata yang salah (typo).');
+    }
+    return compute(_generateKeyPairIsolate, seedPhrase);
   }
 
   // RSA-OAEP-SHA256 encrypt AES key with RSA public key
@@ -32,8 +36,11 @@ class CryptoService {
 
   // ---- Isolate functions (must be top-level or static) ----
 
-  static ({String publicKeyPem, String privateKeyPem}) _generateKeyPairIsolate(Null _) {
-    final secRandom = _buildSecureRandom();
+  static ({String publicKeyPem, String privateKeyPem, String seedPhrase}) _generateKeyPairIsolate(String? inputSeedPhrase) {
+    final String seedPhrase = inputSeedPhrase ?? bip39.generateMnemonic(strength: 256);
+    final seedBytes = bip39.mnemonicToSeed(seedPhrase).sublist(0, 32);
+    final secRandom = FortunaRandom()..seed(KeyParameter(seedBytes));
+
     final keyGen = RSAKeyGenerator()
       ..init(ParametersWithRandom(
         RSAKeyGeneratorParameters(BigInt.parse('65537'), 2048, 64),
@@ -45,6 +52,7 @@ class CryptoService {
     return (
       publicKeyPem: _encodePublicKeyPem(pub),
       privateKeyPem: _encodePrivateKeyPem(priv, pub.exponent!),
+      seedPhrase: seedPhrase,
     );
   }
 

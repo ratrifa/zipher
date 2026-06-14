@@ -157,12 +157,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 validator: (v) => (v?.isEmpty ?? true) ? 'Password wajib diisi' : null,
               ),
               const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () => setState(() { _showReset = true; _resetStep = 0; }),
-                  child: const Text('Lupa password?', style: TextStyle(fontSize: 13)),
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  TextButton(
+                    onPressed: () => context.go('/recover-key'),
+                    style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0)),
+                    child: const Text('Pulihkan Private Key', style: TextStyle(fontSize: 13)),
+                  ),
+                  TextButton(
+                    onPressed: () => setState(() { _showReset = true; _resetStep = 0; }),
+                    style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0)),
+                    child: const Text('Lupa password?', style: TextStyle(fontSize: 13)),
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
               ElevatedButton(
@@ -177,7 +185,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 children: [
                   Text('Belum punya akun?', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
                   TextButton(
-                    onPressed: () => context.push('/register'),
+                    onPressed: () => context.go('/register'),
                     child: const Text('Daftar', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                   ),
                 ],
