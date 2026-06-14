@@ -16,6 +16,15 @@ class StorageBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final percent = user.storagePercent;
+    final displayPercent = (percent > 0 && percent < 0.01) ? 0.01 : percent;
+    
+    String percentText;
+    if (percent > 0 && percent < 0.001) {
+      percentText = '<0.1%';
+    } else {
+      percentText = '${(percent * 100).toStringAsFixed(1)}%';
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       child: Column(
@@ -37,15 +46,15 @@ class StorageBar extends StatelessWidget {
             child: SizedBox(
               height: 6,
               child: LinearProgressIndicator(
-                value: percent,
+                value: displayPercent,
                 backgroundColor: const Color(0xFFe5e7eb),
-                valueColor: const AlwaysStoppedAnimation(Color(0xFF3b82f6)),
+                valueColor: const AlwaysStoppedAnimation(Color(0xFF1a1a1a)),
               ),
             ),
           ),
           const SizedBox(height: 4),
           Text(
-            '${(percent * 100).toStringAsFixed(1)}% terpakai',
+            '$percentText terpakai',
             style: const TextStyle(fontSize: 11, color: Color(0xFF9ca3af)),
           ),
         ],

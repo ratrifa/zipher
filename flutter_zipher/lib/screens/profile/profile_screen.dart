@@ -8,6 +8,7 @@ import '../../core/api/endpoints.dart';
 import '../../models/user.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/profile_provider.dart';
+import '../widgets/private_key_dialog.dart';
 import '../widgets/storage_bar.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -65,6 +66,12 @@ class _ProfileBody extends ConsumerWidget {
             label: 'Password',
             value: '••••••••',
             onTap: () => _showChangePasswordDialog(context, ref),
+          ),
+          _SettingRow(
+            icon: Icons.key_outlined,
+            label: 'Pulihkan Kunci (Private Key)',
+            value: 'Masukkan Seed Phrase',
+            onTap: () => showPrivateKeyDialog(context),
           ),
         ]),
       ],

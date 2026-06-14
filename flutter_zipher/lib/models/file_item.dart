@@ -14,6 +14,8 @@ class FileItem {
   final String? folderId;
   final List<String> tags;
   final String? ownerUsername;
+  final String? activityAction;
+  final String? location;
 
   const FileItem({
     required this.id,
@@ -27,7 +29,41 @@ class FileItem {
     this.folderId,
     this.tags = const [],
     this.ownerUsername,
+    this.activityAction,
+    this.location,
   });
+
+  FileItem copyWith({
+    String? id,
+    String? name,
+    bool? isFolder,
+    String? mimeType,
+    int? size,
+    int? itemCount,
+    bool? isStarred,
+    DateTime? updatedAt,
+    String? folderId,
+    List<String>? tags,
+    String? ownerUsername,
+    String? activityAction,
+    String? location,
+  }) {
+    return FileItem(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      isFolder: isFolder ?? this.isFolder,
+      mimeType: mimeType ?? this.mimeType,
+      size: size ?? this.size,
+      itemCount: itemCount ?? this.itemCount,
+      isStarred: isStarred ?? this.isStarred,
+      updatedAt: updatedAt ?? this.updatedAt,
+      folderId: folderId ?? this.folderId,
+      tags: tags ?? this.tags,
+      ownerUsername: ownerUsername ?? this.ownerUsername,
+      activityAction: activityAction ?? this.activityAction,
+      location: location ?? this.location,
+    );
+  }
 
   factory FileItem.fromJson(Map<String, dynamic> json, {bool isFolder = false}) => FileItem(
         id: json['id']?.toString() ?? '',
@@ -35,12 +71,14 @@ class FileItem {
         isFolder: isFolder || (json['type'] == 'folder'),
         mimeType: json['mime_type']?.toString(),
         size: _toIntNullable(json['size']),
-        itemCount: _toIntNullable(json['item_count']),
+        itemCount: _toIntNullable(json['items_count']) ?? _toIntNullable(json['item_count']),
         isStarred: json['is_starred'] == true || json['is_starred'] == 1,
         updatedAt: DateTime.tryParse(json['updated_at']?.toString() ?? '') ?? DateTime.now(),
         folderId: (json['folder_id'] ?? json['parent_id'])?.toString(),
         tags: (json['tags'] as List<dynamic>?)?.map((t) => t.toString()).toList() ?? [],
         ownerUsername: json['owner']?['username']?.toString(),
+        activityAction: json['activityAction']?.toString(),
+        location: json['location']?.toString(),
       );
 
   static int? _toIntNullable(dynamic v) {

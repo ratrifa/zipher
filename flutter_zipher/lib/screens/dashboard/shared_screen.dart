@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/endpoints.dart';
+import '../../core/utils/file_download_util.dart';
 import '../../models/share.dart';
 import '../../providers/shared_provider.dart';
 import '../widgets/confirm_dialog.dart';
@@ -175,9 +176,12 @@ class _SharedScreenState extends ConsumerState<SharedScreen> with SingleTickerPr
   Widget _buildShareTile(ShareItem share, {required bool isReceived}) {
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: share.file.isFolder ? null : () => FileDownloadUtil.downloadAndOpenFile(context, share.file),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
           children: [
             Container(
               width: 44,
@@ -220,6 +224,8 @@ class _SharedScreenState extends ConsumerState<SharedScreen> with SingleTickerPr
                   isReceived ? _deleteReceived(share) : _revokeShare(share);
                 } else if (v == 'report') {
                   _reportFile(share);
+                } else if (v == 'download') {
+                  FileDownloadUtil.downloadToDevice(context, share.file);
                 }
               },
               itemBuilder: (_) => [
@@ -233,6 +239,14 @@ class _SharedScreenState extends ConsumerState<SharedScreen> with SingleTickerPr
                     ]),
                   ),
                 if (isReceived) ...[
+                  const PopupMenuItem(
+                    value: 'download',
+                    child: Row(children: [
+                      Icon(Icons.download_rounded, size: 18, color: Color(0xFF6b7280)),
+                      SizedBox(width: 12),
+                      Text('Unduh'),
+                    ]),
+                  ),
                   const PopupMenuItem(
                     value: 'delete',
                     child: Row(children: [
@@ -254,6 +268,7 @@ class _SharedScreenState extends ConsumerState<SharedScreen> with SingleTickerPr
             ),
           ],
         ),
+      ),
       ),
     );
   }

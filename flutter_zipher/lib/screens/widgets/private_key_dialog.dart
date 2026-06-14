@@ -45,7 +45,7 @@ class _PrivateKeyDialogState extends State<PrivateKeyDialog> {
         }
         final seedBytes = bip39.mnemonicToSeed(input);
         final seed32 = Uint8List.fromList(seedBytes.take(32).toList());
-        final keyPair = await CryptoService.generateDeterministicKeyPair(seed32);
+        final keyPair = await CryptoService.generateKeyPair(input);
         finalPrivateKey = keyPair.privateKeyPem;
       }
 

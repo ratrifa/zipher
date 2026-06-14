@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/endpoints.dart';
+import '../../core/utils/file_download_util.dart';
 import '../../models/file_item.dart';
 import '../../providers/starred_provider.dart';
 import '../widgets/confirm_dialog.dart';
@@ -102,7 +103,9 @@ class _StarredScreenState extends ConsumerState<StarredScreen> {
           ),
           itemCount: items.length,
           itemBuilder: (_, i) => FileCard(
-            item: items[i], mode: FileCardMode.grid, onTap: () {},
+            item: items[i], mode: FileCardMode.grid, 
+            onTap: items[i].isFolder ? () {} : () => FileDownloadUtil.downloadAndOpenFile(context, items[i]),
+            onDownload: items[i].isFolder ? null : () => FileDownloadUtil.downloadToDevice(context, items[i]),
             onRename: () => _rename(items[i]),
             onStar: () => _toggleStar(items[i]),
             onDelete: () => _delete(items[i]),
@@ -118,7 +121,9 @@ class _StarredScreenState extends ConsumerState<StarredScreen> {
         itemBuilder: (_, i) => Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: FileCard(
-            item: items[i], mode: FileCardMode.list, onTap: () {},
+            item: items[i], mode: FileCardMode.list,
+            onTap: items[i].isFolder ? () {} : () => FileDownloadUtil.downloadAndOpenFile(context, items[i]),
+            onDownload: items[i].isFolder ? null : () => FileDownloadUtil.downloadToDevice(context, items[i]),
             onRename: () => _rename(items[i]),
             onStar: () => _toggleStar(items[i]),
             onDelete: () => _delete(items[i]),

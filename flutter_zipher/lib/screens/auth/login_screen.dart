@@ -157,8 +157,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 validator: (v) => (v?.isEmpty ?? true) ? 'Password wajib diisi' : null,
               ),
               const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   TextButton(
                     onPressed: () => context.go('/recover-key'),
@@ -180,8 +181,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     : const Text('Masuk', style: TextStyle(fontWeight: FontWeight.w600)),
               ),
               const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+              Wrap(
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   Text('Belum punya akun?', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
                   TextButton(

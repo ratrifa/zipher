@@ -6,7 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/endpoints.dart';
 import '../../core/crypto/crypto_service.dart';
+import '../../core/utils/file_download_util.dart';
 import '../../models/file_item.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/contents_provider.dart';
 import '../../providers/files_provider.dart';
 import '../widgets/confirm_dialog.dart';
 import '../widgets/file_card.dart';
@@ -115,6 +118,7 @@ class _MyFilesScreenState extends ConsumerState<MyFilesScreen> {
         });
         await dio.post(Endpoints.filesUpload, data: formData);
         ref.invalidate(contentsProvider);
+        ref.invalidate(authProvider);
         uploaded++;
       } catch (e) {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(
@@ -333,9 +337,10 @@ class _MyFilesScreenState extends ConsumerState<MyFilesScreen> {
           itemBuilder: (_, i) => FileCard(
             item: items[i],
             mode: FileCardMode.grid,
-            onTap: () => items[i].isFolder ? _navigateToFolder(items[i]) : null,
+            onTap: () => items[i].isFolder ? _navigateToFolder(items[i]) : FileDownloadUtil.downloadAndOpenFile(context, items[i]),
             onRename: () => _renameItem(items[i]),
             onDelete: () => _deleteItem(items[i]),
+            onDownload: items[i].isFolder ? null : () => FileDownloadUtil.downloadToDevice(context, items[i]),
             onShare: items[i].isFolder ? null : () => showShareBottomSheet(context, items[i]),
             onStar: () => _toggleStar(items[i]),
           ),
@@ -353,9 +358,10 @@ class _MyFilesScreenState extends ConsumerState<MyFilesScreen> {
           child: FileCard(
             item: items[i],
             mode: FileCardMode.list,
-            onTap: () => items[i].isFolder ? _navigateToFolder(items[i]) : null,
+            onTap: () => items[i].isFolder ? _navigateToFolder(items[i]) : FileDownloadUtil.downloadAndOpenFile(context, items[i]),
             onRename: () => _renameItem(items[i]),
             onDelete: () => _deleteItem(items[i]),
+            onDownload: items[i].isFolder ? null : () => FileDownloadUtil.downloadToDevice(context, items[i]),
             onShare: items[i].isFolder ? null : () => showShareBottomSheet(context, items[i]),
             onStar: () => _toggleStar(items[i]),
           ),

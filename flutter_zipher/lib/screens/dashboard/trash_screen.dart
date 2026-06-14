@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/endpoints.dart';
 import '../../models/file_item.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/trash_provider.dart';
 import '../widgets/confirm_dialog.dart';
 import '../widgets/file_card.dart';
@@ -22,6 +23,7 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
       final ep = item.isFolder ? Endpoints.folderRestore(item.id) : Endpoints.fileRestore(item.id);
       await dio.post(ep);
       ref.invalidate(trashProvider);
+      ref.invalidate(authProvider);
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('"${item.name}" dipulihkan')),
       );
@@ -42,6 +44,7 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
       final ep = item.isFolder ? Endpoints.folderForceDelete(item.id) : Endpoints.fileForceDelete(item.id);
       await dio.delete(ep);
       ref.invalidate(trashProvider);
+      ref.invalidate(authProvider);
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ApiClient.errorMessage(e))));
     }
@@ -63,6 +66,7 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
         return dio.post(ep);
       }));
       ref.invalidate(trashProvider);
+      ref.invalidate(authProvider);
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ApiClient.errorMessage(e))));
     } finally {
@@ -85,6 +89,7 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
         return dio.delete(ep);
       }));
       ref.invalidate(trashProvider);
+      ref.invalidate(authProvider);
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ApiClient.errorMessage(e))));
     } finally {
