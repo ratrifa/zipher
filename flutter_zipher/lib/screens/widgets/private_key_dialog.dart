@@ -1,6 +1,7 @@
-import 'dart:typed_data';
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:bip39/bip39.dart' as bip39;
+import '../../core/api/api_client.dart';
+import '../../core/api/endpoints.dart';
 import '../../core/crypto/crypto_service.dart';
 import '../../core/storage/secure_storage.dart';
 
@@ -29,32 +30,38 @@ class _PrivateKeyDialogState extends State<PrivateKeyDialog> {
       return;
     }
 
+    // Accept either full PEM or the raw base64 body (the form shown/copied
+    // elsewhere in the app). Validate by base64-decoding the key body.
+    final body = input.split('\n').where((l) => !l.startsWith('-----')).join().trim();
+    try {
+      if (base64.decode(body).isEmpty) throw const FormatException('empty');
+    } catch (_) {
+      setState(() => _error = 'Private key tidak valid');
+      return;
+    }
+
     setState(() { _loading = true; _error = null; });
 
     try {
-      String finalPrivateKey = '';
-
-      if (input.contains('BEGIN PRIVATE KEY')) {
-        // Assume it's already a PEM format private key
-        finalPrivateKey = input;
-      } else {
-        // Assume it's a seed phrase
-        if (!bip39.validateMnemonic(input)) {
-          setState(() => _error = 'Seed phrase tidak valid');
-          return;
-        }
-        final seedBytes = bip39.mnemonicToSeed(input);
-        final seed32 = Uint8List.fromList(seedBytes.take(32).toList());
-        final keyPair = await CryptoService.generateKeyPair(input);
-        finalPrivateKey = keyPair.privateKeyPem;
+      // Verify the key actually belongs to this account before saving:
+      // its RSA modulus must match the account's public key.
+      final res = await dio.get(Endpoints.me);
+      final publicKey = res.data['data']?['public_key'] as String?;
+      if (publicKey == null || publicKey.isEmpty) {
+        setState(() => _error = 'Gagal mengambil public key akun');
+        return;
+      }
+      if (!CryptoService.privateKeyMatchesPublic(input, publicKey)) {
+        setState(() => _error = 'Private key tidak cocok dengan akun ini');
+        return;
       }
 
-      await SecureStorage.instance.savePrivateKey(finalPrivateKey);
+      await SecureStorage.instance.savePrivateKey(input);
       if (mounted) {
         Navigator.of(context).pop(true);
       }
     } catch (e) {
-      setState(() => _error = 'Gagal memproses kunci: $e');
+      setState(() => _error = 'Gagal memproses kunci: ${ApiClient.errorMessage(e)}');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -70,7 +77,7 @@ class _PrivateKeyDialogState extends State<PrivateKeyDialog> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Anda baru saja masuk dari perangkat baru atau kunci akses tidak ditemukan di memori perangkat. Silakan masukkan Seed Phrase (24 kata) atau Private Key Anda untuk melanjutkan.',
+              'Anda baru saja masuk dari perangkat baru atau kunci akses tidak ditemukan di memori perangkat. Silakan masukkan Private Key Anda untuk melanjutkan.',
               style: TextStyle(color: Colors.grey[700], fontSize: 13),
             ),
             const SizedBox(height: 16),
@@ -86,8 +93,8 @@ class _PrivateKeyDialogState extends State<PrivateKeyDialog> {
               maxLines: 5,
               style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
               decoration: const InputDecoration(
-                labelText: 'Seed Phrase / Private Key',
-                hintText: 'Masukkan di sini...',
+                labelText: 'Private Key',
+                hintText: '-----BEGIN PRIVATE KEY-----',
                 alignLabelWithHint: true,
                 border: OutlineInputBorder(),
               ),

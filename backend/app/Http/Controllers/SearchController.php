@@ -113,21 +113,26 @@ class SearchController extends Controller
                 return response()->json(['success' => true, 'data' => $files->values()]);
             }
 
+            // Extension is more granular than category, so it wins: searching
+            // "pdf" returns only .pdf files, while "document"/"dokumen" returns
+            // the whole document category.
+            $queryExt   = ltrim($queryLower, '.');
+            $allExts    = array_merge(...array_column($mimeCategories, 'exts'));
+            $isExtSearch = in_array($queryExt, $allExts);
+
             $categoryFilter = null;
             $searchTerm = $rawQuery;
 
-            foreach ($intents as $category => $pattern) {
-                if (preg_match($pattern, $rawQuery)) {
-                    $categoryFilter = $category;
-                    $cleanedQuery = trim(preg_replace($pattern, '', $rawQuery));
-                    $searchTerm = $cleanedQuery ?: null; 
-                    break;
+            if (!$isExtSearch) {
+                foreach ($intents as $category => $pattern) {
+                    if (preg_match($pattern, $rawQuery)) {
+                        $categoryFilter = $category;
+                        $cleanedQuery = trim(preg_replace($pattern, '', $rawQuery));
+                        $searchTerm = $cleanedQuery ?: null;
+                        break;
+                    }
                 }
             }
-
-            $queryExt   = ltrim($queryLower, '.');
-            $allExts    = array_merge(...array_column($mimeCategories, 'exts'));
-            $isExtSearch = !$categoryFilter && in_array($queryExt, $allExts);
 
             $filesQuery = File::where('user_id', $userId)->with(['tags', 'keywords']);
             if ($request->filled('folder_id')) {

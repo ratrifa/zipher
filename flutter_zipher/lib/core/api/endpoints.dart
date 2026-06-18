@@ -1,7 +1,7 @@
 class Endpoints {
   // Change to your server URL for production
-  static const baseUrl = 'http://127.0.0.1:8000'; // Desktop / iOS simulator
-  // static const baseUrl = 'http://10.0.2.2:8000'; // Android emulator
+  // static const baseUrl = 'http://127.0.0.1:8000'; // Desktop / iOS simulator
+  static const baseUrl = 'http://10.0.2.2:8000'; // Android emulator
 
   static const _v1 = '$baseUrl/api/v1';
 

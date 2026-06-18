@@ -3,8 +3,9 @@ import '../../models/user.dart';
 
 class StorageBar extends StatelessWidget {
   final User user;
+  final VoidCallback? onTap;
 
-  const StorageBar({super.key, required this.user});
+  const StorageBar({super.key, required this.user, this.onTap});
 
   static String _formatBytes(int bytes) {
     if (bytes < 1024) return '${bytes}B';
@@ -25,7 +26,9 @@ class StorageBar extends StatelessWidget {
       percentText = '${(percent * 100).toStringAsFixed(1)}%';
     }
 
-    return Padding(
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -34,9 +37,17 @@ class StorageBar extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text('Storage', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-              Text(
-                '${_formatBytes(user.storageUsed)} / ${_formatBytes(user.storageLimit)}',
-                style: const TextStyle(fontSize: 12, color: Color(0xFF9ca3af)),
+              Row(
+                children: [
+                  Text(
+                    '${_formatBytes(user.storageUsed)} / ${_formatBytes(user.storageLimit)}',
+                    style: const TextStyle(fontSize: 12, color: Color(0xFF9ca3af)),
+                  ),
+                  if (onTap != null) ...[
+                    const SizedBox(width: 4),
+                    const Icon(Icons.chevron_right_rounded, size: 16, color: Color(0xFF9ca3af)),
+                  ],
+                ],
               ),
             ],
           ),
@@ -58,6 +69,7 @@ class StorageBar extends StatelessWidget {
             style: const TextStyle(fontSize: 11, color: Color(0xFF9ca3af)),
           ),
         ],
+      ),
       ),
     );
   }

@@ -6,6 +6,7 @@ import '../../core/api/endpoints.dart';
 import '../../core/crypto/crypto_service.dart';
 import '../../core/storage/secure_storage.dart';
 import '../../models/file_item.dart';
+import 'private_key_dialog.dart';
 
 void showShareBottomSheet(BuildContext context, FileItem file) {
   showModalBottomSheet(
@@ -55,7 +56,7 @@ class _ShareSheetState extends State<_ShareSheet> {
     setState(() { _searching = true; _users = []; });
     try {
       final res = await dio.get(Endpoints.usersSearch, queryParameters: {'q': q});
-      setState(() => _users = List<Map<String, dynamic>>.from(res.data['users'] as List));
+      setState(() => _users = List<Map<String, dynamic>>.from((res.data['data'] ?? []) as List));
     } catch (e) {
       setState(() => _error = ApiClient.errorMessage(e));
     } finally {
@@ -67,8 +68,14 @@ class _ShareSheetState extends State<_ShareSheet> {
     if (_selected == null) return;
     setState(() { _sharing = true; _error = null; });
     try {
-      final privateKeyPem = await SecureStorage.instance.getPrivateKey();
-      if (privateKeyPem == null) throw Exception('Private key tidak ditemukan');
+      var privateKeyPem = await SecureStorage.instance.getPrivateKey();
+      if (privateKeyPem == null) {
+        if (!mounted) return;
+        final provided = await showPrivateKeyDialog(context);
+        if (!provided) { setState(() => _sharing = false); return; }
+        privateKeyPem = await SecureStorage.instance.getPrivateKey();
+        if (privateKeyPem == null) { setState(() => _sharing = false); return; }
+      }
 
       // Get encrypted AES key for this file
       final keyRes = await dio.get(Endpoints.fileKey(widget.file.id));

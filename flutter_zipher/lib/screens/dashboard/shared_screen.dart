@@ -97,9 +97,11 @@ class _SharedScreenState extends ConsumerState<SharedScreen> with SingleTickerPr
         'share_id': share.id,
         'reason': reasonCtrl.text.trim(),
       });
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Laporan berhasil dikirim')),
       );
+      }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ApiClient.errorMessage(e))));
     }

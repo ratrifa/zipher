@@ -8,8 +8,9 @@ import '../../core/api/endpoints.dart';
 import '../../models/user.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/profile_provider.dart';
-import '../widgets/private_key_dialog.dart';
+import '../widgets/seed_phrase_dialog.dart';
 import '../widgets/storage_bar.dart';
+import '../widgets/storage_breakdown_sheet.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -41,7 +42,7 @@ class _ProfileBody extends ConsumerWidget {
       children: [
         _buildAvatarSection(context, ref),
         const Divider(height: 1),
-        StorageBar(user: user),
+        StorageBar(user: user, onTap: () => showStorageBreakdownSheet(context, user)),
         const Divider(height: 1),
         const SizedBox(height: 8),
         _buildSection('Akun', [
@@ -71,7 +72,14 @@ class _ProfileBody extends ConsumerWidget {
             icon: Icons.key_outlined,
             label: 'Pulihkan Kunci (Private Key)',
             value: 'Masukkan Seed Phrase',
-            onTap: () => showPrivateKeyDialog(context),
+            onTap: () async {
+              final ok = await showSeedPhraseDialog(context);
+              if (ok && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Private key berhasil dipulihkan')),
+                );
+              }
+            },
           ),
         ]),
       ],
@@ -87,19 +95,7 @@ class _ProfileBody extends ConsumerWidget {
             onTap: () => _pickAvatar(context, ref),
             child: Stack(
               children: [
-                CircleAvatar(
-                  radius: 48,
-                  backgroundColor: const Color(0xFF1a1a1a),
-                  backgroundImage: user.avatar != null
-                      ? CachedNetworkImageProvider(Endpoints.avatarUrl(user.avatar!))
-                      : null,
-                  child: user.avatar == null
-                      ? Text(
-                          user.initials,
-                          style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w700),
-                        )
-                      : null,
-                ),
+                _buildAvatarCircle(),
                 Positioned(
                   bottom: 0,
                   right: 0,
@@ -120,6 +116,37 @@ class _ProfileBody extends ConsumerWidget {
           const SizedBox(height: 4),
           Text(user.email, style: const TextStyle(fontSize: 14, color: Color(0xFF9ca3af))),
         ],
+      ),
+    );
+  }
+
+  Widget _buildAvatarCircle() {
+    const double size = 96;
+    final initials = Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      color: const Color(0xFF1a1a1a),
+      child: Text(
+        user.initials,
+        style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w700),
+      ),
+    );
+
+    return ClipOval(
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: user.avatar == null
+            ? initials
+            : CachedNetworkImage(
+                imageUrl: Endpoints.avatarUrl(user.avatar!),
+                width: size,
+                height: size,
+                fit: BoxFit.cover,
+                placeholder: (_, __) => initials,
+                errorWidget: (_, __, ___) => initials,
+              ),
       ),
     );
   }
@@ -146,13 +173,17 @@ class _ProfileBody extends ConsumerWidget {
     if (image == null) return;
     try {
       await ref.read(profileProvider.notifier).uploadAvatar(File(image.path));
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Avatar diperbarui')),
       );
+      }
     } catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(ApiClient.errorMessage(e))),
       );
+      }
     }
   }
 
@@ -181,13 +212,17 @@ class _ProfileBody extends ConsumerWidget {
               Navigator.pop(ctx);
               try {
                 await onSave(ctrl.text.trim());
-                if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('$label diperbarui')),
                 );
+                }
               } catch (e) {
-                if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text(ApiClient.errorMessage(e))),
                 );
+                }
               }
             },
             child: const Text('Simpan', style: TextStyle(fontWeight: FontWeight.w600)),
@@ -231,13 +266,17 @@ class _ProfileBody extends ConsumerWidget {
                   currentPassword: currentCtrl.text,
                   newPassword: newCtrl.text,
                 );
-                if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Password berhasil diubah')),
                 );
+                }
               } catch (e) {
-                if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text(ApiClient.errorMessage(e))),
                 );
+                }
               }
             },
             child: const Text('Simpan', style: TextStyle(fontWeight: FontWeight.w600)),

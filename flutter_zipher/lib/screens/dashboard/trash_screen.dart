@@ -24,9 +24,11 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
       await dio.post(ep);
       ref.invalidate(trashProvider);
       ref.invalidate(authProvider);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('"${item.name}" dipulihkan')),
       );
+      }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ApiClient.errorMessage(e))));
     }

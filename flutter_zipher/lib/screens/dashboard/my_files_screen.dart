@@ -9,10 +9,10 @@ import '../../core/crypto/crypto_service.dart';
 import '../../core/utils/file_download_util.dart';
 import '../../models/file_item.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/contents_provider.dart';
 import '../../providers/files_provider.dart';
 import '../widgets/confirm_dialog.dart';
 import '../widgets/file_card.dart';
+import '../widgets/move_dialog.dart';
 import '../widgets/rename_dialog.dart';
 import '../widgets/share_bottom_sheet.dart';
 
@@ -29,6 +29,8 @@ class _MyFilesScreenState extends ConsumerState<MyFilesScreen> {
   ];
   bool _isGrid = true;
   bool _uploading = false;
+
+  static const int _maxUploadBytes = 1024 * 1024 * 1024; // 1GB
 
   String? get _currentFolderId => _breadcrumb.last.id;
 
@@ -57,9 +59,11 @@ class _MyFilesScreenState extends ConsumerState<MyFilesScreen> {
       });
       ref.invalidate(contentsProvider);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(ApiClient.errorMessage(e))),
       );
+      }
     }
   }
 
@@ -96,9 +100,19 @@ class _MyFilesScreenState extends ConsumerState<MyFilesScreen> {
     for (final file in result.files) {
       final bytes = file.bytes;
       if (bytes == null) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Tidak bisa membaca file: ${file.name}')),
         );
+        }
+        continue;
+      }
+      if (file.size > _maxUploadBytes) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${file.name} terlalu besar (Maksimal 1GB)')),
+        );
+        }
         continue;
       }
       try {
@@ -121,9 +135,11 @@ class _MyFilesScreenState extends ConsumerState<MyFilesScreen> {
         ref.invalidate(authProvider);
         uploaded++;
       } catch (e) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Gagal upload ${file.name}: ${ApiClient.errorMessage(e)}')),
         );
+        }
       }
     }
 
@@ -180,9 +196,11 @@ class _MyFilesScreenState extends ConsumerState<MyFilesScreen> {
       await dio.patch(endpoint, data: {'name': newName});
       ref.invalidate(contentsProvider);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(ApiClient.errorMessage(e))),
       );
+      }
     }
   }
 
@@ -198,9 +216,23 @@ class _MyFilesScreenState extends ConsumerState<MyFilesScreen> {
       await dio.delete(endpoint);
       ref.invalidate(contentsProvider);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(ApiClient.errorMessage(e))),
       );
+      }
+    }
+  }
+
+  Future<void> _moveItem(FileItem item) async {
+    final moved = await showMoveDialog(context, item);
+    if (moved) {
+      ref.invalidate(contentsProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Item berhasil dipindahkan')),
+      );
+      }
     }
   }
 
@@ -210,9 +242,11 @@ class _MyFilesScreenState extends ConsumerState<MyFilesScreen> {
       await dio.post(endpoint);
       ref.invalidate(contentsProvider);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(ApiClient.errorMessage(e))),
       );
+      }
     }
   }
 
@@ -286,20 +320,20 @@ class _MyFilesScreenState extends ConsumerState<MyFilesScreen> {
         if (v == 'upload') _uploadFile();
       },
       itemBuilder: (_) => [
-        PopupMenuItem(
+        const PopupMenuItem(
           value: 'folder',
           child: Row(children: [
-            const Icon(Icons.create_new_folder_rounded, size: 18, color: Color(0xFF6b7280)),
-            const SizedBox(width: 12),
-            const Text('Buat Folder'),
+            Icon(Icons.create_new_folder_rounded, size: 18, color: Color(0xFF6b7280)),
+            SizedBox(width: 12),
+            Text('Buat Folder'),
           ]),
         ),
-        PopupMenuItem(
+        const PopupMenuItem(
           value: 'upload',
           child: Row(children: [
-            const Icon(Icons.upload_rounded, size: 18, color: Color(0xFF6b7280)),
-            const SizedBox(width: 12),
-            const Text('Upload File'),
+            Icon(Icons.upload_rounded, size: 18, color: Color(0xFF6b7280)),
+            SizedBox(width: 12),
+            Text('Upload File'),
           ]),
         ),
       ],
@@ -340,6 +374,7 @@ class _MyFilesScreenState extends ConsumerState<MyFilesScreen> {
             onTap: () => items[i].isFolder ? _navigateToFolder(items[i]) : FileDownloadUtil.downloadAndOpenFile(context, items[i]),
             onRename: () => _renameItem(items[i]),
             onDelete: () => _deleteItem(items[i]),
+            onMove: () => _moveItem(items[i]),
             onDownload: items[i].isFolder ? null : () => FileDownloadUtil.downloadToDevice(context, items[i]),
             onShare: items[i].isFolder ? null : () => showShareBottomSheet(context, items[i]),
             onStar: () => _toggleStar(items[i]),
@@ -361,6 +396,7 @@ class _MyFilesScreenState extends ConsumerState<MyFilesScreen> {
             onTap: () => items[i].isFolder ? _navigateToFolder(items[i]) : FileDownloadUtil.downloadAndOpenFile(context, items[i]),
             onRename: () => _renameItem(items[i]),
             onDelete: () => _deleteItem(items[i]),
+            onMove: () => _moveItem(items[i]),
             onDownload: items[i].isFolder ? null : () => FileDownloadUtil.downloadToDevice(context, items[i]),
             onShare: items[i].isFolder ? null : () => showShareBottomSheet(context, items[i]),
             onStar: () => _toggleStar(items[i]),

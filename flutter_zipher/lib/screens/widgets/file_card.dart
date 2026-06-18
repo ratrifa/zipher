@@ -14,6 +14,7 @@ class FileCard extends StatelessWidget {
   final VoidCallback? onDelete;
   final VoidCallback? onRestore;
   final VoidCallback? onStar;
+  final VoidCallback? onMove;
   final VoidCallback? onReport;
   final bool inTrash;
   final bool inShared;
@@ -29,6 +30,7 @@ class FileCard extends StatelessWidget {
     this.onDelete,
     this.onRestore,
     this.onStar,
+    this.onMove,
     this.onReport,
     this.inTrash = false,
     this.inShared = false,
@@ -139,6 +141,7 @@ class FileCard extends StatelessWidget {
         menuItems.add(_menuItem('share', Icons.share_rounded, 'Bagikan'));
       }
       if (onRename != null) menuItems.add(_menuItem('rename', Icons.edit_rounded, 'Ganti Nama'));
+      if (onMove != null) menuItems.add(_menuItem('move', Icons.drive_file_move_rounded, 'Pindahkan'));
       if (onStar != null) {
         menuItems.add(_menuItem(
           'star',
@@ -172,6 +175,7 @@ class FileCard extends StatelessWidget {
           case 'download': onDownload?.call();
           case 'share': onShare?.call();
           case 'rename': onRename?.call();
+          case 'move': onMove?.call();
           case 'star': onStar?.call();
           case 'restore': onRestore?.call();
           case 'delete': onDelete?.call();

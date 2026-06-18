@@ -24,6 +24,19 @@ class CryptoService {
     return compute(_rsaDecrypt, {'key': encryptedKey, 'pem': privateKeyPem});
   }
 
+  /// True if the private key corresponds to the given public key (same RSA
+  /// modulus). Accepts full PEM or raw base64 body for either. Returns false
+  /// on any parse error, so it doubles as a structural validity check.
+  static bool privateKeyMatchesPublic(String privateKeyPem, String publicKeyPem) {
+    try {
+      final priv = _parsePrivateKey(privateKeyPem);
+      final pub = _parsePublicKey(publicKeyPem);
+      return priv.modulus == pub.modulus;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // AES-GCM-256 encrypt file, returns ciphertext + random iv + random key
   static Future<({Uint8List encrypted, Uint8List iv, Uint8List aesKey})> encryptFile(Uint8List plaintext) {
     return compute(_aesEncrypt, plaintext);
@@ -197,6 +210,12 @@ class CryptoService {
     return base64.decode(lines);
   }
 
+  /// Strips the PEM header/footer/newlines, leaving just the base64 key body —
+  /// the form the web app shows, copies and downloads. The key parser accepts
+  /// this form as well as full PEM.
+  static String toBase64Key(String pem) =>
+      pem.split('\n').where((l) => !l.startsWith('-----')).join().trim();
+
   // ---- DER Primitives ----
 
   static Uint8List _seq(List<Uint8List> elements) {
@@ -254,7 +273,9 @@ class CryptoService {
     if (der[off] < 128) return (val: der[off], bytes: 1);
     final n = der[off] & 0x7f;
     int length = 0;
-    for (var i = 1; i <= n; i++) length = (length << 8) | der[off + i];
+    for (var i = 1; i <= n; i++) {
+      length = (length << 8) | der[off + i];
+    }
     return (val: length, bytes: n + 1);
   }
 
@@ -265,7 +286,9 @@ class CryptoService {
     var bytes = der.sublist(off, off + lenInfo.val);
     if (bytes.isNotEmpty && bytes[0] == 0x00) bytes = bytes.sublist(1);
     var value = BigInt.zero;
-    for (final b in bytes) value = (value << 8) | BigInt.from(b);
+    for (final b in bytes) {
+      value = (value << 8) | BigInt.from(b);
+    }
     return (val: value, bytes: 1 + lenInfo.bytes + lenInfo.val);
   }
 }

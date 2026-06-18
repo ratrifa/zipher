@@ -2,8 +2,45 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/api/api_client.dart';
 import '../../core/api/endpoints.dart';
+import '../../core/utils/file_download_util.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/files_provider.dart';
+
+/// Circular avatar that shows the user's photo, falling back to their initials
+/// while loading or if the image fails (e.g. missing/unreachable).
+Widget _avatarCircle({
+  required String? avatarPath,
+  required String initials,
+  required double size,
+  required double fontSize,
+}) {
+  final fallback = Container(
+    width: size,
+    height: size,
+    alignment: Alignment.center,
+    color: const Color(0xFF1a1a1a),
+    child: Text(initials,
+        style: TextStyle(color: Colors.white, fontSize: fontSize, fontWeight: FontWeight.w700)),
+  );
+  return ClipOval(
+    child: SizedBox(
+      width: size,
+      height: size,
+      child: avatarPath == null
+          ? fallback
+          : CachedNetworkImage(
+              imageUrl: Endpoints.avatarUrl(avatarPath),
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              placeholder: (_, __) => fallback,
+              errorWidget: (_, __, ___) => fallback,
+            ),
+    ),
+  );
+}
 
 class DashboardShell extends ConsumerStatefulWidget {
   final Widget child;
@@ -46,18 +83,11 @@ class _DashboardShellState extends ConsumerState<DashboardShell> {
             padding: const EdgeInsets.only(right: 12),
             child: GestureDetector(
               onTap: () => _showUserMenu(context),
-              child: CircleAvatar(
-                radius: 18,
-                backgroundColor: const Color(0xFF1a1a1a),
-                backgroundImage: user?.avatar != null
-                    ? CachedNetworkImageProvider(Endpoints.avatarUrl(user!.avatar!))
-                    : null,
-                child: user?.avatar == null
-                    ? Text(
-                        user?.initials ?? '?',
-                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
-                      )
-                    : null,
+              child: _avatarCircle(
+                avatarPath: user?.avatar,
+                initials: user?.initials ?? '?',
+                size: 36,
+                fontSize: 13,
               ),
             ),
           ),
@@ -106,11 +136,11 @@ class _DashboardShellState extends ConsumerState<DashboardShell> {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               child: Row(
                 children: [
-                  CircleAvatar(
-                    radius: 24,
-                    backgroundColor: const Color(0xFF1a1a1a),
-                    child: Text(user?.initials ?? '?',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                  _avatarCircle(
+                    avatarPath: user?.avatar,
+                    initials: user?.initials ?? '?',
+                    size: 48,
+                    fontSize: 18,
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -162,13 +192,61 @@ class _FileSearchDelegate extends SearchDelegate<String> {
       IconButton(icon: const Icon(Icons.arrow_back_rounded), onPressed: () => close(context, ''));
 
   @override
-  Widget buildResults(BuildContext context) => const Center(child: Text('Gunakan panel pencarian'));
+  Widget buildResults(BuildContext context) => _buildSearch(context);
 
   @override
-  Widget buildSuggestions(BuildContext context) {
-    if (query.isEmpty) {
+  Widget buildSuggestions(BuildContext context) => _buildSearch(context);
+
+  Widget _buildSearch(BuildContext context) {
+    final q = query.trim();
+    if (q.isEmpty) {
       return const Center(child: Text('Ketik untuk mencari...', style: TextStyle(color: Colors.grey)));
     }
-    return const Center(child: CircularProgressIndicator());
+    return Consumer(
+      builder: (context, ref, _) {
+        final results = ref.watch(searchProvider(q));
+        return results.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(ApiClient.errorMessage(e),
+                  textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF9ca3af))),
+            ),
+          ),
+          data: (items) {
+            if (items.isEmpty) {
+              return const Center(
+                child: Text('Tidak ada hasil', style: TextStyle(color: Color(0xFF9ca3af))),
+              );
+            }
+            return ListView.builder(
+              itemCount: items.length,
+              itemBuilder: (_, i) {
+                final item = items[i];
+                return ListTile(
+                  leading: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(color: item.iconBackground, borderRadius: BorderRadius.circular(8)),
+                    child: Icon(item.icon, color: item.iconColor, size: 20),
+                  ),
+                  title: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  subtitle: Text(item.isFolder ? 'Folder' : item.displayMeta,
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF9ca3af))),
+                  onTap: () {
+                    if (item.isFolder) {
+                      close(context, '');
+                    } else {
+                      FileDownloadUtil.downloadAndOpenFile(context, item);
+                    }
+                  },
+                );
+              },
+            );
+          },
+        );
+      },
+    );
   }
 }

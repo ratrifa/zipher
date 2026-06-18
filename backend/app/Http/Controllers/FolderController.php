@@ -43,17 +43,16 @@ class FolderController extends Controller
         $parentId = $request->parent_id;
         $userId = auth()->id();
 
-        $folder = Folder::where('user_id', $userId)
+        // Auto-increment the name on collision, e.g. "Folder Baru (1)".
+        $originalName = $name;
+        $counter = 1;
+
+        while (Folder::where('user_id', $userId)
             ->where('parent_id', $parentId)
             ->where('name', $name)
-            ->first();
-
-        if ($folder) {
-            return response()->json([
-                'success' => true,
-                'data' => $folder,
-                'message' => 'Folder sudah ada, menggunakan yang sudah ada.',
-            ], 200);
+            ->exists()) {
+            $name = $originalName . " ($counter)";
+            $counter++;
         }
 
         $folder = Folder::create([

@@ -1,10 +1,12 @@
+import 'dart:convert';
 import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/api/api_client.dart';
+import '../../core/crypto/crypto_service.dart';
 import '../../providers/auth_provider.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
@@ -53,7 +55,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         password: _passCtrl.text,
       );
       setState(() {
-        _generatedPrivateKey = keyPair.privateKeyPem;
+        _generatedPrivateKey = CryptoService.toBase64Key(keyPair.privateKeyPem);
         _generatedSeedPhrase = keyPair.seedPhrase;
       });
     } catch (e) {
@@ -79,20 +81,22 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   Future<void> _downloadFile(String content, String filename) async {
     try {
-      Directory? dir;
-      if (Platform.isAndroid || Platform.isIOS) {
-        dir = await getApplicationDocumentsDirectory();
-      } else {
-        dir = await getDownloadsDirectory();
+      final bytes = Uint8List.fromList(utf8.encode(content));
+      // Let the user choose where to save (e.g. Downloads). On mobile the
+      // bytes are written by the picker; on desktop we write them ourselves.
+      final path = await FilePicker.platform.saveFile(
+        dialogTitle: 'Simpan file',
+        fileName: filename,
+        bytes: bytes,
+      );
+      if (path == null) return;
+      if (!(Platform.isAndroid || Platform.isIOS)) {
+        await File(path).writeAsBytes(bytes);
       }
-      if (dir != null) {
-        final file = File('${dir.path}/$filename');
-        await file.writeAsString(content);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Disimpan di ${file.path}')),
-          );
-        }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Disimpan di $path')),
+        );
       }
     } catch (e) {
       if (mounted) {

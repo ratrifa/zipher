@@ -1,22 +1,41 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../models/file_item.dart';
 import '../../screens/dashboard/file_preview_screen.dart';
+import '../../screens/widgets/private_key_dialog.dart';
 import '../api/api_client.dart';
 import '../api/endpoints.dart';
 import '../crypto/crypto_service.dart';
 import '../storage/secure_storage.dart';
 
 class FileDownloadUtil {
+  /// Returns the private key PEM, prompting the user to enter their
+  /// seed phrase / private key if it is not found on the device.
+  /// Returns null if the key is still unavailable (user cancelled).
+  static Future<String?> _ensurePrivateKey(BuildContext context) async {
+    var privateKeyPem = await SecureStorage.instance.getPrivateKey();
+    if (privateKeyPem != null) return privateKeyPem;
+
+    if (!context.mounted) return null;
+    final provided = await showPrivateKeyDialog(context);
+    if (!provided) return null;
+
+    privateKeyPem = await SecureStorage.instance.getPrivateKey();
+    return privateKeyPem;
+  }
+
   static Future<void> downloadAndOpenFile(BuildContext context, FileItem item) async {
     if (item.isFolder) return;
+
+    // Ensure private key is available (prompt if missing) before doing anything.
+    final privateKeyPem = await _ensurePrivateKey(context);
+    if (privateKeyPem == null) return;
+    if (!context.mounted) return;
 
     // Show loading dialog
     showDialog(
@@ -32,13 +51,7 @@ class FileDownloadUtil {
     );
 
     try {
-      // 1. Get private key
-      final privateKeyPem = await SecureStorage.instance.getPrivateKey();
-      if (privateKeyPem == null) {
-        throw Exception('Private Key tidak ditemukan. Silakan login ulang atau pulihkan kunci Anda.');
-      }
-
-      // 2. Download file data
+      // 1. Download file data
       final res = await dio.get(Endpoints.fileDownload(item.id));
       if (res.statusCode != 200) {
         throw Exception('Gagal mengunduh file.');
@@ -107,16 +120,13 @@ class FileDownloadUtil {
   static Future<void> downloadToDevice(BuildContext context, FileItem item) async {
     if (item.isFolder) return;
 
-    // 1. Ask user where to save
-    final String? outputFile = await FilePicker.platform.saveFile(
-      dialogTitle: 'Simpan file',
-      fileName: item.name,
-    );
-
-    if (outputFile == null) return;
+    // Ensure private key is available (prompt if missing) before doing anything.
+    final privateKeyPem = await _ensurePrivateKey(context);
+    if (privateKeyPem == null) return;
     if (!context.mounted) return;
 
-    // 2. Show loading dialog
+    // 1. Show loading dialog
+    var loadingOpen = true;
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -130,11 +140,7 @@ class FileDownloadUtil {
     );
 
     try {
-      final privateKeyPem = await SecureStorage.instance.getPrivateKey();
-      if (privateKeyPem == null) {
-        throw Exception('Private Key tidak ditemukan. Silakan login ulang atau pulihkan kunci Anda.');
-      }
-
+      // 2. Download + decrypt first, so the save dialog can write the bytes.
       final res = await dio.get(Endpoints.fileDownload(item.id));
       if (res.statusCode != 200) throw Exception('Gagal mengunduh file.');
 
@@ -152,17 +158,29 @@ class FileDownloadUtil {
       final aesKey = await CryptoService.decryptAesKeyWithRsa(aesKeyEncrypted, privateKeyPem);
 
       if (encryptedDataFull.length <= 12) throw Exception('Ukuran data terenkripsi terlalu kecil.');
-      
+
       final iv = encryptedDataFull.sublist(0, 12);
       final ciphertext = encryptedDataFull.sublist(12);
 
       final plaintext = await CryptoService.decryptFile(ciphertext, iv, aesKey);
 
-      final file = File(outputFile);
-      await file.writeAsBytes(plaintext, flush: true);
+      // 3. Close loading, then ask where to save. On mobile the picker writes
+      // the bytes itself via the system file dialog; on desktop we write them.
+      if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
+      loadingOpen = false;
+
+      final outputFile = await FilePicker.platform.saveFile(
+        dialogTitle: 'Simpan file',
+        fileName: item.name,
+        bytes: plaintext,
+      );
+      if (outputFile == null) return;
+
+      if (!(Platform.isAndroid || Platform.isIOS)) {
+        await File(outputFile).writeAsBytes(plaintext, flush: true);
+      }
 
       if (context.mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('File berhasil diunduh ke: $outputFile'),
@@ -172,7 +190,7 @@ class FileDownloadUtil {
       }
     } catch (e) {
       if (context.mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
+        if (loadingOpen) Navigator.of(context, rootNavigator: true).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error: ${e.toString().replaceAll('Exception: ', '')}'),
