@@ -79,14 +79,21 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
   }
 
   Future<void> _saveToDevice(BuildContext context) async {
-    final String? outputFile = await FilePicker.platform.saveFile(
-      dialogTitle: 'Simpan file',
-      fileName: widget.item.name,
-    );
-    if (outputFile == null) return;
-
     try {
-      await File(widget.localPath).copy(outputFile);
+      final fileBytes = await File(widget.localPath).readAsBytes();
+
+      final String? outputFile = await FilePicker.platform.saveFile(
+        dialogTitle: 'Simpan file',
+        fileName: widget.item.name,
+        bytes: fileBytes,
+      );
+      if (outputFile == null) return;
+
+      // On desktop platforms, FilePicker doesn't write bytes itself
+      if (!(Platform.isAndroid || Platform.isIOS)) {
+        await File(outputFile).writeAsBytes(fileBytes, flush: true);
+      }
+
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('File berhasil disimpan ke: $outputFile'), backgroundColor: Colors.green),
